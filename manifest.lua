@@ -4,6 +4,7 @@
 return {
   { "src/lumen.lua", "bin/lumen.lua" },
   { "src/lumen-discover.lua", "bin/lumen-discover.lua" },
+  { "src/lumen-setup.lua", "bin/lumen-setup.lua" },
   { "src/lumen-update.lua", "bin/lumen-update.lua" },
   { "lib/lumen/alerts.lua", "lib/lumen/alerts.lua" },
   { "lib/lumen/app.lua", "lib/lumen/app.lua" },
@@ -16,6 +17,9 @@ return {
   { "lib/lumen/lsc.lua", "lib/lumen/lsc.lua" },
   { "lib/lumen/power.lua", "lib/lumen/power.lua" },
   { "lib/lumen/screen.lua", "lib/lumen/screen.lua" },
+  { "lib/lumen/setup/input.lua", "lib/lumen/setup/input.lua" },
+  { "lib/lumen/setup/render.lua", "lib/lumen/setup/render.lua" },
+  { "lib/lumen/setup/steps.lua", "lib/lumen/setup/steps.lua" },
   { "lib/lumen/sources.lua", "lib/lumen/sources.lua" },
   { "lib/lumen/state.lua", "lib/lumen/state.lua" },
   { "lib/lumen/telemetry.lua", "lib/lumen/telemetry.lua" },
