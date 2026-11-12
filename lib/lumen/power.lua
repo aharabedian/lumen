@@ -6,14 +6,17 @@
     { address, name, ok = true,
       stored, capacity (EU), fill (0..1),
       inEut, outEut, net (EU/t, the LSC's 5 s averages), net5m, net1h (EU/t),
+      in5m, out5m, in1h, out1h (EU/t: the 5 min and 1 hour averages),
       full | empty (seconds until full or empty: the LSC's own figure, else worked out from net5m),
       timeText (the LSC's own words, "10.42 hours"), maintenance ("ok", ...), passiveLoss (EU/t),
+      capacitors ({ UHV = 0, ... }), wireless ("disabled", ...), wirelessEu,
       drain = { ["5s"], ["5m"], ["1h"] }: seconds until empty at each average's net, nil where it isn't
               draining ("5s" is the LSC's own figure when it gives one) }
     or { address, name, ok = false, err } when it can't be read (unloaded chunk, broken adapter...)
   power.drain(reading) -> { ["5s"], ["5m"], ["1h"] }   time to empty at each average (readings have it)
   power.total(readings) -> reading | nil   the readable LSCs added up (name "All LSCs"); nil for fewer than 2
   power.duration(seconds) -> "10h 25m"
+  power.si(v, digits?) -> "4.20k"        EU and EU/t, short ("–" for nil)
 
   Machines are checked with getName() once per address; other gt_machines are left alone. Only methods named
   get... are called: nothing here changes the game.
@@ -75,7 +78,9 @@ function P:readOne(address)
   r.inEut, r.outEut = avgIn.sec, avgOut.sec
   local function minus(a, b) return (a and b) and a - b or nil end
   r.net, r.net5m, r.net1h = minus(avgIn.sec, avgOut.sec), minus(avgIn.min5, avgOut.min5), minus(avgIn.hour1, avgOut.hour1)
+  r.in5m, r.out5m, r.in1h, r.out1h = avgIn.min5, avgOut.min5, avgIn.hour1, avgOut.hour1
   r.maintenance, r.passiveLoss = s.maintenance, s.passiveLoss
+  r.capacitors, r.wireless, r.wirelessEu = s.capacitors, s.wireless, s.wirelessEu
   local t = s.timeTo
   if t then
     r.timeText = t.text
@@ -112,11 +117,13 @@ end
 function power.total(readings)
   if #readings < 2 then return nil end
   local t = { name = "All LSCs", address = "", ok = true, stored = 0, capacity = 0, count = 0 }
-  for _, field in ipairs({ "inEut", "outEut", "net", "net5m", "net1h", "passiveLoss" }) do t[field] = 0 end
+  local SUMS = { "stored", "capacity", "inEut", "outEut", "net", "net5m", "net1h", "in5m", "out5m", "in1h", "out1h",
+    "passiveLoss" }
+  for _, field in ipairs(SUMS) do if t[field] == nil then t[field] = 0 end end
   for _, r in ipairs(readings) do
     if r.ok then
       t.count = t.count + 1
-      for _, field in ipairs({ "stored", "capacity", "inEut", "outEut", "net", "net5m", "net1h", "passiveLoss" }) do
+      for _, field in ipairs(SUMS) do
         if t[field] and r[field] then t[field] = t[field] + r[field] else t[field] = nil end
       end
       if r.maintenance and r.maintenance ~= "ok" then t.maintenance = r.maintenance end
@@ -128,6 +135,15 @@ function power.total(readings)
   t.full, t.empty = eta(t.stored, t.capacity, t.net5m or t.net)
   t.drain = power.drain(t)
   return t
+end
+
+function power.si(v, digits)
+  if v == nil then return "–" end
+  local a = math.abs(v)
+  for _, u in ipairs({ { 1e18, "E" }, { 1e15, "P" }, { 1e12, "T" }, { 1e9, "G" }, { 1e6, "M" }, { 1e3, "k" } }) do
+    if a >= u[1] then return (("%." .. (digits or 2) .. "f"):format(v / u[1])) .. u[2] end
+  end
+  return tostring(math.floor(v + 0.5))
 end
 
 function power.duration(s)

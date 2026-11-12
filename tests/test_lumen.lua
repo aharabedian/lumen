@@ -90,7 +90,10 @@ local third = LSC.new{ stored = 3e9, capacity = 4e9, inSec = 5000, outSec = 1000
 M.components = { ["d2440f27-52c9"] = main.entry, ["0aaa1111-0000"] = spare.entry, ["77770000-0000"] = third.entry }
 M.beeps = 0
 cfgPath = writeCfg("three", 'names = { d2440f27 = "Main", ["0aaa"] = "Spare", ["7777"] = "Backup" },')
-run(cfgPath, 30)
+run(cfgPath, 20)
+check(M.find("Backup needs maintenance (needs_work)", 1) and not M.find("Spare low", 1) and not M.find("Spare empty", 1),
+  "alerts wait their hold: maintenance at once, low fill after 30 s, draining after 5 minutes")
+run(cfgPath, 330)
 H.screen("lumen-three")
 check(M.find(" BAD ", 1) and M.find("3 LSCs", 1), "header: bad health, three LSCs")
 local _, ty = M.find("All LSCs", 2)
@@ -144,7 +147,7 @@ check(#net.sent == 0, "no lensPort: nothing is sent")
 
 cfgPath = writeCfg("lens", 'lensPort = 4243, lensNode = "power-room", lensToken = "lens-s", names = { d2440f27 = "Main" },')
 local hello = codec.encoder{ node = "hub", role = "hub", boot = 1, token = "lens-s" }:hello()[1]
-run(cfgPath, 20, function(n)
+run(cfgPath, 330, function(n)
   if n == 3 then return { "modem_message", "lumen", "hub", 4243, 0, hello } end
 end)
 local msgs = {}

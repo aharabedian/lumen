@@ -13,9 +13,10 @@ if not package.path:find("/home/lib/?.lua", 1, true) then package.path = package
 for name in pairs(package.loaded) do if name:find("^lumen%.") then package.loaded[name] = nil end end
 if not pcall(require, "lumen.version") then error("LUMEN's modules are missing from /home/lib/lumen - run lumen-update", 0) end
 
-local component = require("component")
-local computer  = require("computer")
-local event     = require("event")
+local component  = require("component")
+local computer   = require("computer")
+local event      = require("event")
+local filesystem = require("filesystem")
 local term      = require("term")
 local config    = require("lumen.config")
 local App       = require("lumen.app")
@@ -30,8 +31,11 @@ end
 local gpu = component.gpu
 local w, h = gpu.maxResolution()
 if cfg.resolution then w, h = math.min(w, cfg.resolution[1]), math.min(h, cfg.resolution[2]) end
+-- What LUMEN keeps between runs (switches set by hand, history) goes next to the config file.
+local statePath = (path:match("^(.*)/[^/]*$") or ".") .. "/lumen-state.cfg"
 local app = App.new(cfg, { component = component, gpu = gpu, w = w, h = h,
-  modem = cfg.lensPort and component.modem or nil, beep = computer.beep })
+  modem = cfg.lensPort and component.modem or nil, beep = computer.beep,
+  filesystem = filesystem, computer = computer, statePath = statePath })
 
 local function main()
   app:start(computer.uptime())

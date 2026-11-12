@@ -14,6 +14,7 @@
   M.fgAt(x, y), M.bgAt(x, y)
   M.gpuCalls             set + fill calls so far
   M.beeps, M.cleared
+  M.epoch                real-world seconds at M.time 0 (filesystem.lastModified); M.noClock: it returns 0
   M.web[url] = text      served by internet.request (missing -> 404, { status = N } -> HTTP N)
   M.requests             every internet request: { url, headers }
 
@@ -21,7 +22,7 @@
   as an assumption in docs/architecture.md. Started from LENS's mock, which follows PRISM's.
 ]]
 
-local M = { time = 0, pulls = 0, beeps = 0, gpuCalls = 0, web = {}, requests = {} }
+local M = { time = 0, pulls = 0, beeps = 0, gpuCalls = 0, web = {}, requests = {}, epoch = 1.8e9 }
 
 ---------------------------------------------------------------- serialization
 -- Keys always as ["key"]= / [n]=, so sizes are a little larger than OpenOS's (which writes key= and
@@ -219,6 +220,12 @@ local filesystem = {
   exists = function(p) return sh('test -e "' .. p .. '"') end,
   makeDirectory = function(p) return sh('mkdir -p "' .. p .. '"') end,
   remove = function(p) return os.remove(p) end,
+  -- Real-world milliseconds when the file was last written (OpenComputers' lastModified): here the mock's
+  -- epoch plus M.time, so the clock moves with the tests' time. M.noClock = true: 0, as if it couldn't tell.
+  lastModified = function(p)
+    if M.noClock or not sh('test -e "' .. p .. '"') then return 0 end
+    return math.floor((M.epoch + M.time) * 1000)
+  end,
   rename = function(a, b) return os.rename(a, b) end,
 }
 
