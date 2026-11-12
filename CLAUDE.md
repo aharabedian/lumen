@@ -15,6 +15,7 @@ the way PRISM does (vendored `lens.metrics` / `lens.codec`).
 make check                        # lint + all tests: run before every commit
 lua5.3 tests/run.lua [filter]     # tests (add -v for every check)
 luacheck .                        # lint
+make screens                      # render the screens the tests draw to PNGs (Python + Pillow)
 ```
 
 ## Rules
@@ -30,15 +31,20 @@ luacheck .                        # lint
 - **Runtime constraints (OpenComputers):** Lua 5.3, OpenOS `unicode` instead of `utf8`; never block without
   yielding; wireless packets are ~8 KB; `math.random(m, n)` isn't an integer in game.
 - A new file in `src/` or `lib/` goes in `manifest.lua` (a test checks).
+- **`lib/lumen/lens/` is vendored from LENS** (`../lens`): never edit it here; change LENS, then
+  `tools/sync-lens.sh` (a test checks they match when `../lens` exists).
+- **Never call anything that changes the game** while monitoring: LSCs are only read (`get…`). The mock LSC
+  raises if `setWorkAllowed` is called.
 - **Docs move with code**, in the same change (table in `CONTRIBUTING.md`). Tables over prose; link, don't repeat.
 
 ## Layout
 
 ```
-src/        programs
-lib/lumen/  modules
+src/        programs: lumen.lua (the screen), lumen-discover.lua, lumen-update.lua
+lib/lumen/  modules (lens/ is vendored from LENS)
+config/     lumen.example.cfg
 manifest.lua  every file the updater installs
-docs/       architecture (with the in-game verification table)
-tests/      run.lua, helper.lua, mocks/oc.lua, test_*.lua
-tools/      setup-dev.sh
+docs/       setup, configuration, architecture (with the in-game verification table), images/
+tests/      run.lua, helper.lua, mocks/ (oc, net, lsc), test_*.lua
+tools/      setup-dev.sh, sync-lens.sh, render_screens.py
 ```

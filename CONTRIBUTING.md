@@ -29,4 +29,7 @@
 | You changed | Update |
 |---|---|
 | Behavior, modules, programs, verified game APIs | `docs/architecture.md` |
+| Settings | `docs/configuration.md` + `config/lumen.example.cfg` |
+| LENS metrics | `docs/configuration.md` (Reporting to LENS) |
+| The screen | `docs/setup.md`, and `make docs-images` |
 | Anything a player would notice | `CHANGELOG.md` (Unreleased) |

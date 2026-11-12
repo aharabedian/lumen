@@ -8,7 +8,10 @@ A sibling of [PRISM](https://github.com/aharabedian/prism) (item routing) and
 [LENS](https://github.com/aharabedian/lens) (base-wide monitoring). Like PRISM, LUMEN runs on its own and
 can report to a LENS hub.
 
-> Status: starting. The first step is reading what the game's power blocks actually report.
+> Status: before the first release. **`lumen`** shows every LSC a computer reaches on one screen, with
+> alerts, and can report to LENS. Generators come later.
+
+![LUMEN on a tier 3 screen](docs/images/lumen-three.png)
 
 ## Scope
 
@@ -27,7 +30,21 @@ wget -f https://raw.githubusercontent.com/aharabedian/lumen/main/src/lumen-updat
 /home/lumen-update
 ```
 
-`lumen-discover --read` (with an adapter on an LSC) shows what it reports.
+Then run **`lumen`**. What you need, configuration and the screen: [docs/setup.md](docs/setup.md).
+
+| Program | Does |
+|---|---|
+| `lumen` | The power screen: every LSC's fill, flows, time to full or empty, history, and alerts. Optionally reports to LENS |
+| `lumen-discover` | Lists components and their methods; `--read` shows what an LSC (or any GT machine) reports |
+| `lumen-update` | Installs and updates LUMEN |
+
+## Docs
+
+| | |
+|---|---|
+| [Setup](docs/setup.md) | Hardware, install, running, the screen |
+| [Configuration](docs/configuration.md) | Every setting, the alerts, LENS metrics and a HUD example |
+| [Architecture](docs/architecture.md) | Programs, modules, and what's been verified in game |
 
 ## Development
 
