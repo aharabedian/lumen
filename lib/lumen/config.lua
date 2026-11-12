@@ -16,6 +16,7 @@ config.DEFAULTS = {
   criticalFill = 10,       -- bad below this % full
   drainWarnHours = 4,      -- warn when draining and empty within this many hours
   drainBadHours = 1,       -- bad when empty within this many hours
+  drainAverage = "1h",     -- which net average the drain alerts use: "5s", "5m" or "1h"
   beep = true,             -- beep when a bad alert appears
   lensPort = nil,          -- report to LENS on this port (4243 is LENS's); nil: don't
   lensNode = "lumen",      -- this computer's name in LENS
@@ -41,6 +42,9 @@ function config.check(c)
     or number(c, "drainBadHours", 0, nil, "a number of hours")
   if err then return nil, err end
   if c.criticalFill > c.lowFill then return nil, "criticalFill must not be above lowFill" end
+  if c.drainAverage ~= "5s" and c.drainAverage ~= "5m" and c.drainAverage ~= "1h" then
+    return nil, 'drainAverage must be "5s", "5m" or "1h"'
+  end
   if c.drainBadHours > c.drainWarnHours then return nil, "drainBadHours must not be above drainWarnHours" end
   if type(c.names) ~= "table" then return nil, 'names must be a table: { ["d2440f27"] = "Main" }' end
   for k, v in pairs(c.names) do

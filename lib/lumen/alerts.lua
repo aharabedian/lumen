@@ -6,8 +6,9 @@
       offline:   can't be read                                          bad
       fill:      below cfg.criticalFill %                               bad
                  below cfg.lowFill %                                    warn
-      drain:     emptying, empty within cfg.drainBadHours               bad
-                 emptying, empty within cfg.drainWarnHours              warn
+      drain:     at the cfg.drainAverage net ("1h": the LSC's 1 hour average, so a reactor's off cycles
+                 don't count), empty within cfg.drainBadHours           bad
+                                     empty within cfg.drainWarnHours    warn
       maint:     maintenance isn't "ok"                                 warn
     and "none" (warn) when no LSC was found.
   alerts.tracker() -> t
@@ -22,6 +23,7 @@ local power = require("lumen.power")
 local alerts = {}
 
 local RANK = { bad = 1, warn = 2 }
+local AVERAGE_TEXT = { ["5s"] = "5 s", ["5m"] = "5 min", ["1h"] = "1 h" }
 
 function alerts.evaluate(readings, cfg)
   local out = {}
@@ -38,12 +40,12 @@ function alerts.evaluate(readings, cfg)
       elseif pct and pct < cfg.lowFill then
         add("fill" .. key, "warn", ("%s low: %.1f%%"):format(r.name, pct))
       end
-      if r.empty then
-        local hours = r.empty / 3600
-        if hours < cfg.drainBadHours then
-          add("drain" .. key, "bad", ("%s empty in %s"):format(r.name, power.duration(r.empty)))
-        elseif hours < cfg.drainWarnHours then
-          add("drain" .. key, "warn", ("%s empty in %s"):format(r.name, power.duration(r.empty)))
+      local secs = r.drain and r.drain[cfg.drainAverage]
+      if secs then
+        local level = secs < cfg.drainBadHours * 3600 and "bad" or secs < cfg.drainWarnHours * 3600 and "warn" or nil
+        if level then
+          add("drain" .. key, level, ("%s empty in %s (%s average)"):format(r.name, power.duration(secs),
+            AVERAGE_TEXT[cfg.drainAverage]))
         end
       end
       if r.maintenance and r.maintenance ~= "ok" then

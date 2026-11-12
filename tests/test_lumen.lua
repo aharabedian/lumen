@@ -84,7 +84,8 @@ main.state.stored, main.state.inSec, main.state.outSec = 10773450724, 65536, 647
 main.state.timeTo, main.state.timeText = "full", "10.42 hours"
 
 ---------------------------------------------------------------- several LSCs, alerts
-local spare = LSC.new{ stored = 4e8, capacity = 4e9, inSec = 0, outSec = 2000, timeTo = "empty", timeText = "30 minutes" }
+local spare = LSC.new{ stored = 4e8, capacity = 4e9, inSec = 0, outSec = 2000, in1h = 0, out1h = 12000,
+  timeTo = "empty", timeText = "30 minutes" }
 local third = LSC.new{ stored = 3e9, capacity = 4e9, inSec = 5000, outSec = 1000, maintenance = "needs_work" }
 M.components = { ["d2440f27-52c9"] = main.entry, ["0aaa1111-0000"] = spare.entry, ["77770000-0000"] = third.entry }
 M.beeps = 0
@@ -99,10 +100,10 @@ local mx, my = M.find("Main", 4)
 local sx, sy = M.find("Spare", 4)
 check(bx == 2 and mx > 70 and by == my and sx == 2 and sy > by, "LSCs in two columns, by name")
 check(M.bgAt(2, sy + 1) == 0xff5c5c, "a bad LSC's bar is red")
-check(M.find("Spare empty in 30m", 1) and M.find("Spare nearly empty: 10.0%", 1) == nil and M.find("Spare low: 10.0%", 1),
+check(M.find("Spare empty in 27m (1 h average)", 1) and M.find("Spare nearly empty: 10.0%", 1) == nil and M.find("Spare low: 10.0%", 1),
   "alerts: draining soon (bad) and low (warn)")
 check(M.find("Backup needs maintenance (needs_work)", 1), "alerts: maintenance")
-local _, ay = M.find("Spare empty in 30m", 1)
+local _, ay = M.find("Spare empty in 27m (1 h average)", 1)
 local _, ly = M.find("Spare low", 1)
 check(ay < ly and M.find(" BAD ", ay), "bad alerts first, tagged")
 check(M.beeps == 1, "one beep for the new bad alert, not every reading")
@@ -170,6 +171,8 @@ check(sample("lumen_stored_eu", "Main") == 10773450724 and sample("lumen_capacit
 check(sample("lumen_net_eut", "Main") == 820 and sample("lumen_input_eut", "Main") == 65536
   and math.abs(sample("lumen_full_seconds", "Main") - 37512) < 1e-6, "flows and time to full")
 check(sample("lumen_lsc_up", "LSC 0aaa") == 1 and sample("lumen_empty_seconds", "LSC 0aaa") == 1800, "time to empty")
+check(math.abs(sample("lumen_drain_seconds", "LSC 0aaa") - 4e8 / 12000 / 20) < 1e-6 and sample("lumen_net_1h_eut", "LSC 0aaa") == -12000
+  and sample("lumen_drain_seconds", "Main") == nil, "time to empty at the 1 hour net, and that net; nothing when not draining")
 check(s.health == "bad" and #s.alerts == 2, "health and alerts go to LENS too")
 check(M.find("LENS port 4243 as power-room", 1), "the header says it reports to LENS")
 

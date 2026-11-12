@@ -11,9 +11,10 @@ versions follow [Semantic Versioning](https://semver.org/).
   chart. A total panel when there are several LSCs, two columns on wide screens, tier 2 supported, and
   `resolution` for big screens.
 - Alerts: low and critical fill, draining toward empty, maintenance, an LSC that can't be read, none found.
-  A new bad alert beeps once.
-- Optional reporting to LENS (`lensPort`, `lensNode`, `lensToken`): `lumen_*` metrics per LSC, alerts and
-  health.
+  A new bad alert beeps once. Drain alerts use the LSC's 1 hour net by default (`drainAverage`), so
+  generators that cycle, like a vacuum reactor, don't raise them on every off cycle.
+- Optional reporting to LENS (`lensPort`, `lensNode`, `lensToken`): `lumen_*` metrics per LSC (including
+  `lumen_drain_seconds`, time to empty at the drain alerts' average), alerts and health.
 - `/home/lumen.cfg` (optional) and `config/lumen.example.cfg`; docs: setup, configuration.
 - Repository scaffold: test runner, lint, CI.
 - **`lumen-discover`**: components and their methods; `--read` shows what the read-only methods of a component

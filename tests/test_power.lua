@@ -93,15 +93,30 @@ end
 check(ids(one{ stored = 2e9, capacity = 1e10, inSec = 10, outSec = 10 }) == "warn fill:d2440f27-52c9", "below lowFill: warn")
 list = one{ stored = 5e8, capacity = 1e10, inSec = 10, outSec = 10 }
 check(ids(list) == "bad fill:d2440f27-52c9" and list[1].text == "Main nearly empty: 5.0%", "below criticalFill: bad, with the name")
-check(ids(one{ stored = 9e9, capacity = 1e10, outSec = 100, timeTo = "empty", timeText = "3 hours" })
-  == "warn drain:d2440f27-52c9", "empty within drainWarnHours: warn")
-list = one{ stored = 9e9, capacity = 1e10, outSec = 100, timeTo = "empty", timeText = "30 minutes" }
-check(ids(list) == "bad drain:d2440f27-52c9" and list[1].text == "Main empty in 30m", "empty within drainBadHours: bad")
-check(#one{ stored = 9e9, capacity = 1e10, outSec = 100, timeTo = "empty", timeText = "5 hours" } == 0, "empty later: fine")
+-- Drain alerts follow the 1 hour net by default: a vacuum reactor's off cycle drains hard for a while
+-- (the LSC says empty in 25 minutes) but the hour still comes out ahead.
+local offCycle = { stored = 9e9, capacity = 1e10, inSec = 0, outSec = 100000, in1h = 150000, out1h = 100000,
+  timeTo = "empty", timeText = "25 minutes" }
+check(#one(offCycle) == 0, "a reactor's off cycle: no drain alert while the 1 hour net is positive")
+list = one{ stored = 9e9, capacity = 1e10, in1h = 0, out1h = 50000 }
+check(ids(list) == "warn drain:d2440f27-52c9" and list[1].text == "Main empty in 2h 30m (1 h average)",
+  "draining over the hour, empty within drainWarnHours: warn, saying which average")
+list = one{ stored = 9e9, capacity = 1e10, in1h = 0, out1h = 200000 }
+check(ids(list) == "bad drain:d2440f27-52c9" and list[1].text == "Main empty in 37m (1 h average)",
+  "empty within drainBadHours: bad")
+check(#one{ stored = 9e9, capacity = 1e10, in1h = 0, out1h = 10000 } == 0, "draining slowly (12 h left): fine")
+cfg = config.check({ names = { d2440f27 = "Main" }, drainAverage = "5s" })
+list = one(offCycle)
+check(ids(list) == "bad drain:d2440f27-52c9" and list[1].text == "Main empty in 25m (5 s average)",
+  "drainAverage = \"5s\": the LSC's own time to empty, every dip")
+cfg = config.check({ names = { d2440f27 = "Main" }, drainAverage = "5m" })
+check(#one{ stored = 9e9, capacity = 1e10, outSec = 100000, in5m = 0, out5m = 200000, in1h = 1e6 } == 1, "drainAverage = \"5m\"")
+check(bad({ drainAverage = "2h" }, 'drainAverage must be'), "an average the LSC doesn't give is refused")
+cfg = config.check({ names = { d2440f27 = "Main" } })
 check(ids(one{ stored = 9e9, capacity = 1e10, maintenance = "needs_work" }) == "warn maint:d2440f27-52c9",
   "maintenance needed: warn")
 check(ids(one{ stored = 9e9, capacity = 1e10, broken = "boom" }) == "bad offline:d2440f27-52c9", "can't be read: bad")
-list = one{ stored = 1e8, capacity = 1e10, outSec = 100, timeTo = "empty", timeText = "20 minutes", maintenance = "x" }
+list = one{ stored = 1e8, capacity = 1e10, in1h = 0, out1h = 100000, maintenance = "x" }
 check(list[1].level == "bad" and list[#list].level == "warn", "bad alerts first")
 
 local tr = alerts.tracker()

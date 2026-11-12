@@ -7,8 +7,11 @@
       stored, capacity (EU), fill (0..1),
       inEut, outEut, net (EU/t, the LSC's 5 s averages), net5m, net1h (EU/t),
       full | empty (seconds until full or empty: the LSC's own figure, else worked out from net5m),
-      timeText (the LSC's own words, "10.42 hours"), maintenance ("ok", ...), passiveLoss (EU/t) }
+      timeText (the LSC's own words, "10.42 hours"), maintenance ("ok", ...), passiveLoss (EU/t),
+      drain = { ["5s"], ["5m"], ["1h"] }: seconds until empty at each average's net, nil where it isn't
+              draining ("5s" is the LSC's own figure when it gives one) }
     or { address, name, ok = false, err } when it can't be read (unloaded chunk, broken adapter...)
+  power.drain(reading) -> { ["5s"], ["5m"], ["1h"] }   time to empty at each average (readings have it)
   power.total(readings) -> reading | nil   the readable LSCs added up (name "All LSCs"); nil for fewer than 2
   power.duration(seconds) -> "10h 25m"
 
@@ -79,6 +82,7 @@ function P:readOne(address)
     if t.to == "full" then r.full = t.seconds elseif t.to == "empty" then r.empty = t.seconds end
   end
   if not (r.full or r.empty) then r.full, r.empty = eta(r.stored, r.capacity, r.net5m or r.net) end
+  r.drain = power.drain(r)
   return r
 end
 
@@ -99,6 +103,12 @@ function P:read()
   return out
 end
 
+-- Seconds until empty at each average's net; the LSC's own figure for 5 s when it has one.
+function power.drain(r)
+  local function at(net) return select(2, eta(r.stored, r.capacity, net)) end
+  return { ["5s"] = (r.timeText and r.empty) or at(r.net), ["5m"] = at(r.net5m), ["1h"] = at(r.net1h) }
+end
+
 function power.total(readings)
   if #readings < 2 then return nil end
   local t = { name = "All LSCs", address = "", ok = true, stored = 0, capacity = 0, count = 0 }
@@ -116,6 +126,7 @@ function power.total(readings)
   t.maintenance = t.maintenance or "ok"
   t.fill = (t.stored and t.capacity and t.capacity > 0) and math.min(1, t.stored / t.capacity) or nil
   t.full, t.empty = eta(t.stored, t.capacity, t.net5m or t.net)
+  t.drain = power.drain(t)
   return t
 end
 
