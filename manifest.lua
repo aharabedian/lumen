@@ -5,5 +5,6 @@ return {
   { "src/lumen-discover.lua", "bin/lumen-discover.lua" },
   { "src/lumen-update.lua", "bin/lumen-update.lua" },
   { "lib/lumen/discover.lua", "lib/lumen/discover.lua" },
+  { "lib/lumen/lsc.lua", "lib/lumen/lsc.lua" },
   { "lib/lumen/version.lua", "lib/lumen/version.lua" },
 }
