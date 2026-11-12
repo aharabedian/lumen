@@ -8,8 +8,9 @@ A sibling of [PRISM](https://github.com/aharabedian/prism) (item routing) and
 [LENS](https://github.com/aharabedian/lens) (base-wide monitoring). Like PRISM, LUMEN runs on its own and
 can report to a LENS hub.
 
-> Status: before the first release. **`lumen`** shows every LSC a computer reaches on one screen, with
-> alerts, and can report to LENS. Generators come later.
+**`lumen`** shows every LSC a computer reaches on one screen, with history and alerts that don't cry wolf; shows
+generators and IC2 reactors; switches generators on and off with the LSCs' fill (a redstone signal or a GT
+machine); and can report to LENS.
 
 ![LUMEN on a tier 3 screen](docs/images/lumen-three.png)
 
@@ -30,11 +31,12 @@ wget -f https://raw.githubusercontent.com/aharabedian/lumen/main/src/lumen-updat
 /home/lumen-update
 ```
 
-Then run **`lumen`**. What you need, configuration and the screen: [docs/setup.md](docs/setup.md).
+Then **`lumen-setup`**, and run **`lumen`**. What you need, switches and the screen: [docs/setup.md](docs/setup.md).
 
 | Program | Does |
 |---|---|
-| `lumen` | The power screen: every LSC's fill, flows, time to full or empty, history, and alerts. Optionally reports to LENS |
+| `lumen` | The power screen: every LSC's fill, flows, time to full or empty, history and the last 24 hours; generators and reactors; switches; alerts. Optionally reports to LENS |
+| `lumen-setup` | Asks about your LSCs, generators, switches, alerts and LENS, and writes `/home/lumen.cfg` |
 | `lumen-discover` | Lists components and their methods; `--read` shows what an LSC (or any GT machine) reports |
 | `lumen-update` | Installs and updates LUMEN |
 
@@ -42,8 +44,8 @@ Then run **`lumen`**. What you need, configuration and the screen: [docs/setup.m
 
 | | |
 |---|---|
-| [Setup](docs/setup.md) | Hardware, install, running, the screen |
-| [Configuration](docs/configuration.md) | Every setting, the alerts, LENS metrics and a HUD example |
+| [Setup](docs/setup.md) | Hardware, install, running, the screen, switches |
+| [Configuration](docs/configuration.md) | Every setting, sources, switches, the alerts, LENS metrics |
 | [Architecture](docs/architecture.md) | Programs, modules, and what's been verified in game |
 
 ## Development

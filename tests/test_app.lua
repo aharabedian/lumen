@@ -68,8 +68,8 @@ hub.open(4243)
 M.modem = net:endpoint("lumen")
 local cfgPath = writeCfg("vac", [[
   names = { d2440f27 = "Main" },
-  sources = { { address = "eeee", name = "Vac nuke" } },
-  control = { { name = "Vac nuke", redstone = "5e1f", side = "north", onBelow = 30, offAbove = 90, source = "Vac nuke" } },
+  sources = { { address = "eeee", name = "Vac reactor" } },
+  control = { { name = "Vac nuke", redstone = "5e1f", side = "north", onBelow = 30, offAbove = 90, source = "Vac reactor" } },
   lensPort = 4243, lensNode = "power-room",
 ]])
 
@@ -164,7 +164,7 @@ local function sample(name, key, value)
 end
 check(sample("lumen_switch_on", "switch", "Vac nuke") ~= nil and sample("lumen_switch_auto", "switch", "Vac nuke") == 1,
   "LENS: the switch, and that it's on auto")
-check(sample("lumen_source_up", "source", "Vac nuke") == 1 and sample("lumen_reactor_heat_ratio", "source", "Vac nuke") == 0,
+check(sample("lumen_source_up", "source", "Vac reactor") == 1 and sample("lumen_reactor_heat_ratio", "source", "Vac reactor") == 0,
   "LENS: the reactor and its heat")
 check((sample("lumen_in_24h_eu", "lsc", "Main") or 0) > 0 and (sample("lumen_out_24h_eu", "lsc", "Main") or 0) > 0,
   "LENS: the last 24 hours' EU in and out")

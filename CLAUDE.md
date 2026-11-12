@@ -33,18 +33,18 @@ make screens                      # render the screens the tests draw to PNGs (P
 - A new file in `src/` or `lib/` goes in `manifest.lua` (a test checks).
 - **`lib/lumen/lens/` is vendored from LENS** (`../lens`): never edit it here; change LENS, then
   `tools/sync-lens.sh` (a test checks they match when `../lens` exists).
-- **Never call anything that changes the game** while monitoring: LSCs are only read (`get…`). The mock LSC
-  raises if `setWorkAllowed` is called.
+- **Only `lumen.control` changes the game**, and only the redstone outputs and GT machines `control` names
+  (never an LSC). Everything else only reads. The mock LSC raises if `setWorkAllowed` is called.
 - **Docs move with code**, in the same change (table in `CONTRIBUTING.md`). Tables over prose; link, don't repeat.
 
 ## Layout
 
 ```
-src/        programs: lumen.lua (the screen), lumen-discover.lua, lumen-update.lua
-lib/lumen/  modules (lens/ is vendored from LENS)
+src/        programs: lumen.lua (the screen), lumen-setup.lua, lumen-discover.lua, lumen-update.lua
+lib/lumen/  modules: pages/ (the screen's pages), setup/ (lumen-setup), lens/ (vendored from LENS)
 config/     lumen.example.cfg
 manifest.lua  every file the updater installs
 docs/       setup, configuration, architecture (with the in-game verification table), images/
-tests/      run.lua, helper.lua, mocks/ (oc, net, lsc), test_*.lua
+tests/      run.lua, helper.lua, mocks/ (oc, net, lsc, gen), test_*.lua
 tools/      setup-dev.sh, sync-lens.sh, render_screens.py
 ```
