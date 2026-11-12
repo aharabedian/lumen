@@ -1,6 +1,21 @@
 # Architecture
 
-Nothing to map yet: programs and modules will be listed here as they're written.
+## Programs
+
+| Program (`src/`) | Does |
+|---|---|
+| `lumen-discover.lua` | Lists components with every method and doc; `--read` shows what the read-only ones return (`lumen.discover`) |
+| `lumen-update.lua` | Installs and updates from GitHub what `manifest.lua` lists. Self-contained: it installs the modules |
+
+Programs but `lumen-update` start with the same three lines as PRISM's and LENS's: add `/home/lib/?.lua` to the
+path, forget cached `lumen.*` modules, and say "run lumen-update" if they're missing.
+
+## Modules
+
+| Module | Does |
+|---|---|
+| `lumen.discover` | Component reports, and reading every read-only method (named get/is/has, documented as taking no arguments) |
+| `lumen.version` | The release string; `lumen-update` keeps its own copy (a test checks) |
 
 ## What's verified in game
 

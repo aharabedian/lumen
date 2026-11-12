@@ -18,6 +18,17 @@ can report to a LENS hub.
 | Simple, safe control: switching generators on and off with the LSC's fill | Anything that needs reactions faster than a computer polling every few seconds |
 | Alerts (low power, draining fast), and reporting to LENS | |
 
+## Install
+
+On a computer with an Internet Card:
+
+```
+wget -f https://raw.githubusercontent.com/aharabedian/lumen/main/src/lumen-update.lua /home/lumen-update.lua
+/home/lumen-update
+```
+
+`lumen-discover --read` (with an adapter on an LSC) shows what it reports.
+
 ## Development
 
 ```
