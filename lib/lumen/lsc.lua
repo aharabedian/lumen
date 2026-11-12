@@ -48,7 +48,7 @@ function lsc.parse(lines)
     local key = (parts[1] or ""):gsub("^kekztech%.infodata%.", ""):gsub("^lapotronic_super_capacitor%.", "")
     local v = parts[2]
     local avg, window = key:match("^avg_eu_(%a+)%.(%w+)$")
-    if key == "operational_data" then -- a heading
+    if key == "operational_data" then info.heading = true -- the "Operational data" title line
     elseif key == "eu_stored" then first("stored", number(v))
     elseif key == "total_capacity" then first("capacity", number(v))
     elseif key == "used_capacity" then first("used", number(v))
