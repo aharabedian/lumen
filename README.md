@@ -51,8 +51,9 @@ Then **`lumen-setup`**, and run **`lumen`**. What you need, switches and the scr
 ## Development
 
 ```
-make dev      # install luacheck into .luarocks/ (once)
+make dev      # install luacheck and a Python venv for rendering screens (once)
 make check    # lint + tests
+make screens  # render the screens the tests draw into build/screens/*.png
 ```
 
 MIT licensed. See [CONTRIBUTING.md](CONTRIBUTING.md).
