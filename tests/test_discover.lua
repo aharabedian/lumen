@@ -98,6 +98,8 @@ check(ok and out:find("no nothing_here component found", 1, true), "--read of a 
 -- shape (an iterator with getAll) are guesses.
 local reactor = { redstone = true, flag = false, heat = 0, setCalls = {} }
 local function producing() return reactor.redstone or reactor.flag end
+-- Each call takes a tick (seen in game).
+local function tick() M.time = M.time + 0.05 end
 local vent = { name = "IC2:reactorVentGold", label = "Overclocked Heat Vent", damage = 590, maxDamage = 10000, size = 1 }
 local rod = { name = "gregtech:gt.rodUranium4", label = "Quad Fuel Rod (Uranium)", damage = 1, maxDamage = 100, size = 1 }
 M.components["rea00000-0000"] = { type = "reactor", methods = {
@@ -111,15 +113,20 @@ M.components["rea00000-0000"] = { type = "reactor", methods = {
     setActive = "function(active:boolean): boolean -- activate or deactivate the reactor",
   },
   proxy = {
-    getHeat = function() return reactor.heat end,
+    getHeat = function() tick(); return reactor.heat end,
     getMaxHeat = function() return 10000 end,
     getOfferedEnergy = function() return producing() and 1200.0 or 0.0 end,
     getReactorEUOutput = function() return producing() and 1200.0 or 0.0 end,
     getReactorEnergyOutput = function() return 0.0 end,
+    -- (x, y) from 0 (seen in game); a 360k cell at (0, 1) gains 1000 heat/s (a guess).
     getSlotInfo = function(x, y)
+      tick()
       if y == nil then return nil end -- one argument: nothing (seen in game)
-      if x > 8 or y > 5 then error("invalid slot") end
-      if x == 0 and y == 0 then return { item = vent.label, heat = vent.damage } end
+      if x > 2 or y > 5 then error("invalid slot") end
+      if x == 0 and y == 1 then
+        return { item = {}, canStoreHeat = true, heat = 40000 + math.floor(M.time * 1000) % 300000, maxHeat = 360000 }
+      end
+      return { item = {}, canStoreHeat = false, heat = 0, maxHeat = 0 }
     end,
     producesEnergy = function() return producing() end,
     -- The flag is kept in the reactor and holds it on through anything but setActive(false) (seen in game):
@@ -131,7 +138,6 @@ M.components["rea00000-0000"] = { type = "reactor", methods = {
   } }
 local stacks = { [5] = { [1] = vent, [3] = vent, [5] = rod, [14] = rod } }
 local tcalls = {}
-local function tick() M.time = M.time + 0.05 end
 local function tr(name, f) return function(...) tcalls[name] = (tcalls[name] or 0) + 1; tick(); return f(...) end end
 M.components["tra00000-0000"] = { type = "transposer", methods = {}, proxy = {
     getInventoryName = tr("getInventoryName", function(side)
@@ -152,9 +158,12 @@ check(ok and file:find("== reactor rea00000-0000 (reactor)\n  getHeat  function(
   and file:find("  setActive  function(active:boolean): boolean", 1, true), "--probe lists the reactor's methods with docs" .. (ok and "" or tostring(out)))
 check(file:find("producesEnergy() -> true", 1, true) and file:find("getOfferedEnergy() -> 1200", 1, true),
   "it reads producesEnergy and getOfferedEnergy, which --read skips")
-check(file:find('getSlotInfo(0, 0) -> { heat=590 (integer), item="Overclocked Heat Vent" }', 1, true)
-  and file:find("getSlotInfo(0..9, 0..6): 1 answered (first 6 shown), 16 errors (first: getSlotInfo(9, 0): ", 1, true),
-  "getSlotInfo(x, y) is tried for every column and row; answers shown, errors counted")
+check(file:find('getSlotInfo(0, 0) -> { canStoreHeat=false, heat=0 (integer), item={...}, maxHeat=0 (integer) }', 1, true)
+  and file:find("getSlotInfo(0..9, 0..6): 18 answered (first 6 shown), 52 errors (first: getSlotInfo(3, 0): ", 1, true)
+  and file:find("; 70 calls took 3.50 s", 1, true), "getSlotInfo(x, y) is tried for every column and row, timed")
+check(file:find("10 getHeat calls took 0.50 s", 1, true), "the reactor's calls are timed")
+check(file:find("heat rates over 5 s %(producing: true%):\n    %(0, 1%) %d+/360000, %+1000 heat/s, full in %d+ s")
+  and file:find("hull 0 -> 0, +0.0 heat/s", 1, true), "each part that stores heat: heat/s and time to full; the hull's too")
 check(file:find('side 5 (east): "blockGenerator", 18 slots', 1, true)
   and file:find("side 2 (north): no inventory", 1, true), "each transposer side: inventory name and size, or none")
 check(file:find('[1] { damage=590 (integer), label="Overclocked Heat Vent", maxDamage=10000 (integer), name="IC2:reactorVentGold", size=1 (integer) }', 1, true)

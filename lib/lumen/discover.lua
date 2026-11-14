@@ -10,7 +10,8 @@
     is ever called, so it can't change anything. Tables (like getSensorInformation) get a line per entry.
   discover.probe(component, computer, opts) -> lines[]
     What reactor control needs, for each IC2 reactor and transposer: the reactor's methods with docs,
-    producesEnergy / getOfferedEnergy, getSlotInfo(x, y) for x 0..9, y 0..6; each transposer side's
+    producesEnergy / getOfferedEnergy, 10 getHeat calls timed, getSlotInfo(x, y) for x 0..9, y 0..6 (timed),
+    then each part that stores heat read again opts.seconds (default 5) later: heat/s, time to full; each transposer side's
     inventory (name, size) and its stacks (getStackInSlot, every field of the first of each kind) and
     getAllStacks, timed with computer.uptime. Reads only, unless opts.release: setActive(false) on each
     reactor, so only its redstone runs it, and whether it's still producing a second later (opts.sleep
@@ -147,7 +148,7 @@ function discover.isReactorInventory(name)
   return type(name) == "string" and (name == "blockGenerator" or name:lower():find("reactor", 1, true) ~= nil)
 end
 
-local function probeReactor(lines, component, addr, proxy)
+local function probeReactor(lines, component, computer, addr, proxy, opts)
   lines[#lines + 1] = ("== reactor %s (%s)"):format(addr, component.type(addr))
   for _, name in ipairs(methodNames(component, addr)) do
     lines[#lines + 1] = ("  %s  %s"):format(name, docOf(component, addr, name))
@@ -158,12 +159,19 @@ local function probeReactor(lines, component, addr, proxy)
       lines[#lines + 1] = ("  %s() -> %s"):format(name, ok and show(v) or ("error: " .. v))
     end
   end
+  if proxy.getHeat then
+    local start = computer.uptime()
+    for _ = 1, 10 do try(proxy.getHeat) end
+    lines[#lines + 1] = ("  10 getHeat calls took %.2f s"):format(computer.uptime() - start)
+  end
   if not proxy.getSlotInfo then return end
-  -- getSlotInfo(x:int, y:int): a reactor is up to 9 columns by 6 rows; which base (0 or 1) is unknown.
-  local answered, errors, firstErr = 0, 0, nil
+  -- getSlotInfo(x:int, y:int): x column, y row, from 0; a reactor is up to 9 columns by 6 rows.
+  local answered, errors, firstErr, calls, cells = 0, 0, nil, 0, {}
+  local start = computer.uptime()
   for y = 0, 6 do
     for x = 0, 9 do
       local ok, v = try(proxy.getSlotInfo, x, y)
+      calls = calls + 1
       if not ok then
         errors = errors + 1
         firstErr = firstErr or ("getSlotInfo(" .. x .. ", " .. y .. "): " .. v)
@@ -172,11 +180,37 @@ local function probeReactor(lines, component, addr, proxy)
         if answered <= 6 then
           lines[#lines + 1] = ("  getSlotInfo(%d, %d) -> %s"):format(x, y, type(v) == "table" and inline(v) or show(v))
         end
+        if type(v) == "table" and v.canStoreHeat and type(v.heat) == "number" then
+          cells[#cells + 1] = { x = x, y = y, heat = v.heat, t = computer.uptime() }
+        end
       end
     end
   end
-  lines[#lines + 1] = ("  getSlotInfo(0..9, 0..6): %d answered (first 6 shown), %d errors%s"):format(answered, errors,
-    firstErr and (" (first: " .. firstErr .. ")") or "")
+  lines[#lines + 1] = ("  getSlotInfo(0..9, 0..6): %d answered (first 6 shown), %d errors%s; %d calls took %.2f s"):format(
+    answered, errors, firstErr and (" (first: " .. firstErr .. ")") or "", calls, computer.uptime() - start)
+  -- How fast the parts that store heat fill: each read twice, opts.seconds apart (reads only).
+  if #cells == 0 or not opts.sleep then return end
+  local seconds = opts.seconds or 5
+  local hull0, t0 = value(proxy.getHeat), computer.uptime()
+  opts.sleep(seconds)
+  local producing = value(proxy.producesEnergy)
+  lines[#lines + 1] = ("  heat rates over %d s (producing: %s):"):format(seconds, show(producing))
+  for _, c in ipairs(cells) do
+    local v = value(proxy.getSlotInfo, c.x, c.y)
+    local dt = computer.uptime() - c.t
+    if type(v) == "table" and type(v.heat) == "number" and dt > 0 then
+      local rate = (v.heat - c.heat) / dt
+      local left = (tonumber(v.maxHeat) or 0) - v.heat
+      lines[#lines + 1] = ("    (%d, %d) %s/%s, %+.0f heat/s%s"):format(c.x, c.y, tostring(v.heat), tostring(v.maxHeat),
+        rate, rate > 0 and (", full in %.0f s"):format(left / rate) or "")
+    else
+      lines[#lines + 1] = ("    (%d, %d) can't be read again"):format(c.x, c.y)
+    end
+  end
+  local hull1 = value(proxy.getHeat)
+  if type(hull0) == "number" and type(hull1) == "number" then
+    lines[#lines + 1] = ("    hull %d -> %d, %+.1f heat/s"):format(hull0, hull1, (hull1 - hull0) / (computer.uptime() - t0))
+  end
 end
 
 local function probeTransposer(lines, computer, addr, t)
@@ -253,7 +287,7 @@ function discover.probe(component, computer, opts)
   if #reactors == 0 then lines[#lines + 1] = "no reactor component found (an adapter next to the reactor or a chamber)" end
   for _, c in ipairs(reactors) do
     local proxy = component.proxy(c.addr)
-    probeReactor(lines, component, c.addr, proxy)
+    probeReactor(lines, component, computer, c.addr, proxy, opts)
     if opts.release then release(lines, computer, proxy, opts) end
     lines[#lines + 1] = ""
   end
