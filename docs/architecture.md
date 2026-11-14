@@ -55,10 +55,14 @@ The tests run against `tests/mocks/oc.lua`. This table says which of its behavio
 | An IC2 reactor's heat and parts don't change while it's off | Seen in game (the user, 2026-11-14) |
 | `setActive` is a second "on" input beside redstone: the reactor runs if **either** is on. `setActive(false)` can't stop a reactor its redstone runs; `setActive(true)` holds one on whatever its redstone says | Seen in game (with the redstone on, then off, 2026-11-14) |
 | The `setActive(true)` flag is **kept in the reactor**: it stayed on with the computer off, the adapter broken, and a lever switched on and off. Only `setActive(false)` clears it. LUMEN never sets it | Seen in game (the user, 2026-11-14) |
-| A Redstone I/O block's output when its computer stops or crashes (reactor control relies on the reactor stopping then) | Assumed it drops to 0. To check before reactor control |
+| A **Redstone I/O block keeps its output** when its computer shuts down, and when the cable to it is broken | Seen in game (2026-11-14): never run a reactor through one |
+| A **redstone card** in the computer's case drops its output to 0 when the computer shuts down (cleanly) | Seen in game (2026-11-14) |
+| A redstone card's output when the computer loses power or is broken | Assumed it drops to 0, like a shutdown. To check |
+| `getSlotInfo(x, y)` (x column, y row, from 0) -> `{ item, heat, maxHeat, canStoreHeat }`: a 360k He coolant cell's exact heat (40056 of 360000) where the transposer's `damage` says 11 of 100 | Seen in game (`--probe`, 2026-11-14) |
+| A transposer's `getAllStacks(side)` returns a table of every slot (empty ones too) in 2 ticks (0.10 s for 18 or 54 slots) | Seen in game (`--probe`, 2026-11-14) |
 | A transposer sees the reactor as `"blockGenerator"`, 18 slots with no chambers; stacks have `name` (`IC2:reactorVentGold`, `IC2:reactorHeatSwitchDiamond`, `gregtech:gt.rodUranium4`), `label`, `damage` (a vent's or exchanger's heat, of `maxDamage` 10000; a quad uranium rod's of 100), `size`, `hasTag`, `tag` | Seen in game (`--probe`, 2026-11-14) |
 | A transposer's `getStackInSlot` takes a tick (18 calls in 0.90 s, 54 in 2.70 s), so a remove then insert is never atomic | Seen in game (`--probe`, 2026-11-14) |
-| `getSlotInfo(x, y)`'s answer (with one argument it returns nothing); `getAllStacks` (one call for a whole side?); slot order of a reactor with chambers; coolant cells' `damage` | Assumed. Run `lumen-discover --probe` again |
+| How the transposer's slots (1..n) map to `getSlotInfo`'s (x, y) | Assumed row by row. To check |
 | `filesystem.lastModified` returns real-world milliseconds, so history survives a restart | Assumed: without it, history starts again on each run |
 | `math.random(m, n)` doesn't return an integer (the mock returns floats) | Seen in game (PRISM and LENS) |
 | `os.sleep` (OpenOS) waits while yielding; `gpu.set` draws `▀` with the foreground on top (the splash's half-block pixels) | **Unverified** |
