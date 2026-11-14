@@ -9,7 +9,7 @@
     lumen-discover --probe          IC2 reactors and transposers, for reactor control: the reactor's methods,
                                     getSlotInfo, each transposer side's inventory and stacks, timed. Read only.
     lumen-discover --probe --pause  also pauses each producing reactor with setActive(false) for 5 s, reading
-                                    heat and its parts' damage every second, then setActive(true).
+                                    heat and its parts' damage every second, then puts it back as it was.
   Everything is also written to /home/lumen-discover.txt (on your own machine:
   saves/<world>/opencomputers/<disk address>/home/lumen-discover.txt).
 ]]

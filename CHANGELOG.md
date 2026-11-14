@@ -7,9 +7,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 - **`lumen-discover --probe`**: what reactor control needs to know, read only: each IC2 reactor's methods,
-  `getSlotInfo` for every slot, and each transposer side's inventory and stacks, timed. `--probe --pause` also
-  pauses each running reactor for 5 s with `setActive`, reading heat and parts' damage every second, then
-  starts it again.
+  `getSlotInfo(x, y)` for every slot, and each transposer side's inventory and stacks, timed (one by one, and
+  `getAllStacks`). `--probe --pause` also pauses each running reactor for 5 s with `setActive`, reading heat
+  and parts' damage every second, then puts it back as it was: redstone in charge, never left held on.
 
 ## [0.2.0] - 2026-11-13
 
