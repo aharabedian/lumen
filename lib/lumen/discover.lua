@@ -12,11 +12,9 @@
     What reactor control needs, for each IC2 reactor and transposer: the reactor's methods with docs,
     producesEnergy / getOfferedEnergy, getSlotInfo(x, y) for x 0..9, y 0..6; each transposer side's
     inventory (name, size) and its stacks (getStackInSlot, every field of the first of each kind) and
-    getAllStacks, timed with computer.uptime. Reads only, unless opts.pause: on a reactor that's producing,
-    setActive(false) for opts.seconds (default 5), a reading every second (heat, output, producing, total
-    damage of the parts a transposer sees in it), then put back: setActive(false) leaves redstone in charge;
-    setActive(true) again only if the reactor is then off (it ran on setActive alone).
-    opts.sleep(seconds) waits (os.sleep).
+    getAllStacks, timed with computer.uptime. Reads only, unless opts.release: setActive(false) on each
+    reactor, so only its redstone runs it, and whether it's still producing a second later (opts.sleep
+    waits). Never setActive(true): the reactor keeps that flag and stays on whatever its redstone says.
   discover.isReactorInventory(name) -> bool   a transposer's inventory name for a reactor ("blockGenerator")
 ]]
 
@@ -149,22 +147,6 @@ function discover.isReactorInventory(name)
   return type(name) == "string" and (name == "blockGenerator" or name:lower():find("reactor", 1, true) ~= nil)
 end
 
-local function reactorSide(t)
-  for side = 0, 5 do
-    if discover.isReactorInventory(value(t.getInventoryName, side)) then return side end
-  end
-end
-
--- Total damage (heat, for vents and exchangers) of the parts a transposer sees in the reactor.
-local function partsDamage(t, side)
-  local total = 0
-  for slot = 1, value(t.getInventorySize, side) or 0 do
-    local st = value(t.getStackInSlot, side, slot)
-    if type(st) == "table" and type(st.damage) == "number" then total = total + st.damage end
-  end
-  return total
-end
-
 local function probeReactor(lines, component, addr, proxy)
   lines[#lines + 1] = ("== reactor %s (%s)"):format(addr, component.type(addr))
   for _, name in ipairs(methodNames(component, addr)) do
@@ -242,56 +224,21 @@ local function probeTransposer(lines, computer, addr, t)
   end
 end
 
--- Pauses a producing reactor with setActive(false) for opts.seconds, reading every second, then puts it back.
--- setActive is a second "on" input beside redstone (seen in game: the reactor runs if either is on), so
--- putting back is setActive(false) - redstone in charge - and setActive(true) only if that leaves it off,
--- meaning it ran on setActive alone. A pause can't stop a reactor that redstone runs.
-local function pauseTest(lines, computer, proxy, transposers, opts)
-  local seconds = opts.seconds or 5
-  if not proxy.setActive then lines[#lines + 1] = "  pause test: no setActive"; return end
-  if value(proxy.producesEnergy) ~= true then
-    lines[#lines + 1] = "  pause test skipped: the reactor isn't producing (start it, then run --pause again)"
-    return
-  end
-  local parts
-  for _, t in ipairs(transposers) do
-    local side = reactorSide(t)
-    if side then parts = function() return partsDamage(t, side) end; break end
-  end
-  local function sample(what)
-    lines[#lines + 1] = ("  %-9s t=%.2f heat=%s output=%s producing=%s parts damage=%s"):format(what,
-      computer.uptime(), show(value(proxy.getHeat)), show(value(proxy.getReactorEUOutput)),
-      show(value(proxy.producesEnergy)), parts and tostring(parts()) or "(no transposer on the reactor)")
-  end
-  local function set(on)
-    local r = table.pack(try(proxy.setActive, on))
-    lines[#lines + 1] = ("  setActive(%s) -> %s"):format(tostring(on),
-      not r[1] and ("error: " .. tostring(r[2])) or (r.n > 1 and show(r[2]) or "nothing"))
-    return r[1]
-  end
-  lines[#lines + 1] = ("  pause test: setActive(false) for %d s, then put back"):format(seconds)
-  sample("before")
-  local ok, err = pcall(function()
-    if not set(false) then error("setActive(false) failed", 0) end
-    for i = 1, seconds do
-      opts.sleep(1)
-      sample("paused " .. i)
-      if i == 1 and value(proxy.producesEnergy) then
-        lines[#lines + 1] = "  still producing: its redstone runs it, and setActive can't stop that"
-        break
-      end
-    end
-  end)
-  if not ok then lines[#lines + 1] = "  pause test failed: " .. tostring(err) end
-  local pok = pcall(opts.sleep, 1)
-  if pok and value(proxy.producesEnergy) ~= true then
-    lines[#lines + 1] = "  off with setActive(false): it ran on setActive alone, so it's started again"
-    if not set(true) then lines[#lines + 1] = "  setActive(true) failed - CHECK THE REACTOR" end
-    pcall(opts.sleep, 1)
-  else
-    lines[#lines + 1] = "  put back: setActive(false), its redstone runs it"
-  end
-  sample("after")
+-- setActive(false): clears the reactor's own "on" flag, so its redstone alone runs it. Never setActive(true):
+-- that flag is stored in the reactor and holds it on whatever its redstone says, even with the computer off
+-- or the adapter broken (seen in game, 2026-11-14).
+local function release(lines, computer, proxy, opts)
+  if not proxy.setActive then lines[#lines + 1] = "  release: no setActive"; return end
+  local before = value(proxy.producesEnergy)
+  local r = table.pack(try(proxy.setActive, false))
+  lines[#lines + 1] = ("  release: setActive(false) -> %s"):format(
+    not r[1] and ("error: " .. tostring(r[2])) or (r.n > 1 and show(r[2]) or "nothing"))
+  pcall(opts.sleep, 1)
+  local after = value(proxy.producesEnergy)
+  lines[#lines + 1] = ("  producing before %s, after %s%s"):format(show(before), show(after),
+    after and " (its redstone runs it)" or "")
+  lines[#lines + 1] = ("  t=%.2f heat=%s output=%s"):format(computer.uptime(), show(value(proxy.getHeat)),
+    show(value(proxy.getReactorEUOutput)))
 end
 
 function discover.probe(component, computer, opts)
@@ -307,7 +254,7 @@ function discover.probe(component, computer, opts)
   for _, c in ipairs(reactors) do
     local proxy = component.proxy(c.addr)
     probeReactor(lines, component, c.addr, proxy)
-    if opts.pause then pauseTest(lines, computer, proxy, transposers, opts) end
+    if opts.release then release(lines, computer, proxy, opts) end
     lines[#lines + 1] = ""
   end
   if #tlist == 0 then lines[#lines + 1] = "no transposer found" end

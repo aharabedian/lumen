@@ -122,7 +122,12 @@ M.components["rea00000-0000"] = { type = "reactor", methods = {
       if x == 0 and y == 0 then return { item = vent.label, heat = vent.damage } end
     end,
     producesEnergy = function() return producing() end,
-    setActive = function(on) reactor.setCalls[#reactor.setCalls + 1] = on; reactor.flag = on; return true end,
+    -- The flag is kept in the reactor and holds it on through anything but setActive(false) (seen in game):
+    -- LUMEN must never set it, so the mock raises.
+    setActive = function(on)
+      if on then error("setActive(true) holds the reactor on: never call it") end
+      reactor.setCalls[#reactor.setCalls + 1] = on; reactor.flag = on; return true
+    end,
   } }
 local stacks = { [5] = { [1] = vent, [3] = vent, [5] = rod, [14] = rod } }
 local tcalls = {}
@@ -160,31 +165,13 @@ check(tcalls.transferItem == nil and #reactor.setCalls == 0, "--probe moves noth
 check(discover.isReactorInventory("blockGenerator") and not discover.isReactorInventory("tile.IronChest"),
   "a transposer's blockGenerator side is the reactor")
 
--- --pause on a reactor its redstone runs: setActive can't stop it; put back with setActive(false).
-ok, _, file = run("--probe", "--pause")
-check(ok and file:find("still producing: its redstone runs it", 1, true) and reactor.flag == false
-  and reactor.setCalls[#reactor.setCalls] == false and file:find("put back: setActive(false), its redstone runs it", 1, true),
-  "--pause on a reactor redstone runs: can't stop it; left to its redstone, not held on by setActive")
--- --pause on a reactor setActive runs: paused, then started again.
+-- --release: setActive(false) only, never true; it clears a flag a computer left on.
 reactor.redstone, reactor.flag, reactor.setCalls = false, true, {}
-ok, _, file = run("--pause")
-check(ok and file:find("paused 5 ", 1, true) and file:find("producing=false parts damage=1182", 1, true),
-  "it reads heat, output and parts damage while paused")
-check(reactor.flag == true and producing() and file:find("it ran on setActive alone, so it's started again", 1, true)
-  and file:find("after .-producing=true"), "a reactor that ran on setActive alone is started again")
--- Off: left alone.
-reactor.flag, reactor.setCalls = false, {}
-ok, _, file = run("--pause")
-check(ok and #reactor.setCalls == 0 and file:find("pause test skipped: the reactor isn't producing", 1, true),
-  "a reactor that's off is left alone")
--- Interrupted while paused: still put back.
-reactor.flag = true
-local realSleep = os.sleep -- luacheck: ignore 143
-local sleeps = 0
-os.sleep = function(t) sleeps = sleeps + 1; if sleeps == 2 then error("interrupted") end; realSleep(t) end -- luacheck: ignore 142
-ok, _, file = run("--pause")
-os.sleep = realSleep -- luacheck: ignore 142
-check(ok and reactor.flag == true and file:find("pause test failed: .-interrupted"),
-  "a failure while paused still puts the reactor back")
+ok, _, file = run("--release")
+check(ok and #reactor.setCalls == 1 and reactor.setCalls[1] == false and not producing()
+  and file:find("producing before true, after false", 1, true), "--release clears the flag: setActive(false), once")
+reactor.redstone, reactor.setCalls = true, {}
+ok, _, file = run("--release")
+check(ok and file:find("after true (its redstone runs it)", 1, true), "a reactor its redstone runs keeps running")
 
 H.done()

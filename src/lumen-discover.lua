@@ -8,8 +8,9 @@
                                     `type` component returns (default gt_machine). Never calls anything else.
     lumen-discover --probe          IC2 reactors and transposers, for reactor control: the reactor's methods,
                                     getSlotInfo, each transposer side's inventory and stacks, timed. Read only.
-    lumen-discover --probe --pause  also pauses each producing reactor with setActive(false) for 5 s, reading
-                                    heat and its parts' damage every second, then puts it back as it was.
+    lumen-discover --release        setActive(false) on each IC2 reactor: clears the "on" flag a computer set,
+                                    which holds a reactor on whatever its redstone says (it's kept in the
+                                    reactor). Then only redstone runs it.
   Everything is also written to /home/lumen-discover.txt (on your own machine:
   saves/<world>/opencomputers/<disk address>/home/lumen-discover.txt).
 ]]
@@ -27,7 +28,7 @@ local opts, readType, probe = {}, nil, nil
 for i, a in ipairs(args) do
   if a == "--all" then opts.all = true
   elseif a == "--probe" then probe = probe or {}
-  elseif a == "--pause" then probe = probe or {}; probe.pause = true
+  elseif a == "--release" then probe = probe or {}; probe.release = true
   elseif a == "--read" then readType = args[i + 1] or "gt_machine"
   elseif args[i - 1] ~= "--read" then opts.filter = a end
 end

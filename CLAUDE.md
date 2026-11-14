@@ -23,8 +23,10 @@ make screens                      # render the screens the tests draw to PNGs (P
 - **Focused and isolated.** Change only this repo for LUMEN's needs; never add LUMEN features to PRISM or LENS.
 - **Scope:** monitoring, alerts, simple safe control (generators on/off by LSC fill), and **IC2 vacuum reactor
   control by pause-swap-resume**: OpenComputers can't swap a part atomically, so the reactor is stopped
-  (heat freezes when it's off, seen in game) before parts are swapped and checked, then started again.
-  Being built: probe in game first (`lumen-discover --probe`).
+  by its redstone (heat freezes when it's off, seen in game) before parts are swapped and checked, then
+  started again. Being built: probe in game first (`lumen-discover --probe`).
+- **Never call a reactor's `setActive(true)`.** The flag is kept in the reactor and holds it on whatever its
+  redstone says, even with the computer off or the adapter broken (seen in game). The mock raises.
 - **Test first, against the mock.** Every behavior change gets a check in `tests/`. Never mark work done
   without `make check` passing.
 - **Mocks mirror the game.** Probe in game before designing against an API; when the user reports in-game
@@ -37,8 +39,8 @@ make screens                      # render the screens the tests draw to PNGs (P
   `tools/sync-lens.sh` (a test checks they match when `../lens` exists).
 - **Only `lumen.control` changes the game**, and only the redstone outputs and GT machines `control` names
   (never an LSC). Everything else only reads. The mock LSC raises if `setWorkAllowed` is called.
-  One exception: `lumen-discover --pause`, asked for by name, pauses a producing reactor for 5 s
-  (`setActive`), and turns it back on even when the test fails.
+  One exception: `lumen-discover --release`, asked for by name, calls `setActive(false)` on reactors, which
+  only hands them back to their redstone.
 - **Docs move with code**, in the same change (table in `CONTRIBUTING.md`). Tables over prose; link, don't repeat.
 
 ## Layout

@@ -6,7 +6,7 @@
 |---|---|
 | `lumen.lua` | The power screen. The event loop only: the work is in `lumen.app` |
 | `lumen-setup.lua` | Guided setup: writes `/home/lumen.cfg` and `.shrc` (`lumen.setup.*`) |
-| `lumen-discover.lua` | Lists components with every method and doc; `--read` shows what the read-only ones return; `--probe` reads IC2 reactors and transposers for reactor control, `--pause` also pauses a running reactor for 5 s (`lumen.discover`) |
+| `lumen-discover.lua` | Lists components with every method and doc; `--read` shows what the read-only ones return; `--probe` reads IC2 reactors and transposers for reactor control; `--release` calls `setActive(false)` on reactors (`lumen.discover`) |
 | `lumen-update.lua` | Installs and updates from GitHub what `manifest.lua` lists. Self-contained: it installs the modules |
 
 Programs but `lumen-update` start with the same three lines as PRISM's and LENS's: add `/home/lib/?.lua` to the
@@ -30,7 +30,7 @@ path, forget cached `lumen.*` modules, and say "run lumen-update" if they're mis
 | `lumen.gui` | Palette (the SPECTRA logo's, LUMEN green as the accent) and GPU helpers (the same as PRISM's and LENS's) |
 | `lumen.splash` | The SPECTRA logo in pixel art while `lumen` starts: `show(gpu, w, h, name, version, accent)`; `rows(scale)` is pure |
 | `lumen.lens.metrics`, `lumen.lens.codec` | **Vendored from LENS**, byte for byte: never edit here. Change LENS, then `tools/sync-lens.sh` (a test compares them with `../lens`) |
-| `lumen.discover` | Component reports; reading every read-only method (named get/is/has, documented as taking no arguments); the reactor probe (reactor slots, transposer sides and stacks, timed) and pause test |
+| `lumen.discover` | Component reports; reading every read-only method (named get/is/has, documented as taking no arguments); the reactor probe (reactor slots, transposer sides and stacks, timed) and release |
 | `lumen.lsc` | Reads an LSC's `getSensorInformation` lines: stored, capacity, fill %, averages (5 s / 5 min / 1 h), time to full/empty, maintenance, capacitor counts |
 | `lumen.setup.steps`, `.render`, `.input` | `lumen-setup`'s questions, the commented `lumen.cfg` it writes, and terminal prompts |
 | `lumen.version` | The release string; `lumen-update` keeps its own copy (a test checks) |
@@ -53,7 +53,9 @@ The tests run against `tests/mocks/oc.lua`. This table says which of its behavio
 | A GT generator (an LFTR, turbines) answers `isMachineActive`, `getWorkProgress`, `getWorkMaxProgress`; its sensor lines say its EU/t in a line with "EU/t" and output / generates / produces, and maintenance as "Problems: n" or a `maintenance_status` key | Assumed: LUMEN shows "–" when a line isn't there. Run `lumen-discover --read` on an LFTR to confirm |
 | An IC2 reactor is component `reactor` with `getHeat` (integer), `getMaxHeat` (integer, 10000), `getReactorEUOutput` and `getReactorEnergyOutput` (floats; 1200 running), `getOfferedEnergy` (float), `getSlotInfo(x:int, y:int)`, `producesEnergy`, `setActive(active): boolean` | **Seen in game** (`--probe`, 2026-11-14) |
 | An IC2 reactor's heat and parts don't change while it's off | Seen in game (the user, 2026-11-14) |
-| `setActive` is a second "on" input beside redstone: the reactor runs if **either** is on. `setActive(false)` can't stop a reactor its redstone runs; `setActive(true)` holds one on whatever its redstone says | Seen in game (`--probe --pause`, with the redstone on, then off, 2026-11-14) |
+| `setActive` is a second "on" input beside redstone: the reactor runs if **either** is on. `setActive(false)` can't stop a reactor its redstone runs; `setActive(true)` holds one on whatever its redstone says | Seen in game (with the redstone on, then off, 2026-11-14) |
+| The `setActive(true)` flag is **kept in the reactor**: it stayed on with the computer off, the adapter broken, and a lever switched on and off. Only `setActive(false)` clears it. LUMEN never sets it | Seen in game (the user, 2026-11-14) |
+| A Redstone I/O block's output when its computer stops or crashes (reactor control relies on the reactor stopping then) | Assumed it drops to 0. To check before reactor control |
 | A transposer sees the reactor as `"blockGenerator"`, 18 slots with no chambers; stacks have `name` (`IC2:reactorVentGold`, `IC2:reactorHeatSwitchDiamond`, `gregtech:gt.rodUranium4`), `label`, `damage` (a vent's or exchanger's heat, of `maxDamage` 10000; a quad uranium rod's of 100), `size`, `hasTag`, `tag` | Seen in game (`--probe`, 2026-11-14) |
 | A transposer's `getStackInSlot` takes a tick (18 calls in 0.90 s, 54 in 2.70 s), so a remove then insert is never atomic | Seen in game (`--probe`, 2026-11-14) |
 | `getSlotInfo(x, y)`'s answer (with one argument it returns nothing); `getAllStacks` (one call for a whole side?); slot order of a reactor with chambers; coolant cells' `damage` | Assumed. Run `lumen-discover --probe` again |
