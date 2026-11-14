@@ -90,4 +90,87 @@ check(out:find("getStoredEUString", 1, true), "the readings are printed too")
 ok, out = run("--read", "nothing_here")
 check(ok and out:find("no nothing_here component found", 1, true), "--read of a type that isn't attached says so")
 
+---------------------------------------------------------------- --probe
+-- A reactor with the methods lumen-discover found in game (2026-11-14); getSlotInfo's and setActive's
+-- arguments and answers are guesses. A transposer with the reactor on top and a chest of cells below.
+local reactor = { heat = 120, active = true, setCalls = {} }
+local cell = { name = "IC2:reactorCoolantSix", label = "60k Coolant Cell", damage = 40, maxDamage = 10000, size = 1 }
+M.components["rea00000-0000"] = { type = "reactor", methods = {
+    getHeat = "function():number -- Get the reactor's heat.",
+    getMaxHeat = "function():number -- Get the reactor's maximum heat before exploding.",
+    getReactorEUOutput = "function():number -- Get the reactor's energy output.",
+    getReactorEnergyOutput = "function():number -- Get the reactor's energy output.",
+    getOfferedEnergy = "function():number",
+    getSlotInfo = "function(slot:number):table",
+    producesEnergy = "function():boolean -- Get whether the reactor is active and supposed to produce energy.",
+    setActive = "function(active:boolean)",
+  },
+  proxy = {
+    getHeat = function() return reactor.heat end,
+    getMaxHeat = function() return 10000 end,
+    getReactorEUOutput = function() return reactor.active and 1240.0 or 0.0 end,
+    getReactorEnergyOutput = function() return 0.0 end,
+    getOfferedEnergy = function() return 0.0 end,
+    getSlotInfo = function(n)
+      if n < 1 or n > 54 then error("invalid slot") end
+      if n == 3 then return { item = cell.label, damage = cell.damage } end
+    end,
+    producesEnergy = function() return reactor.active end,
+    setActive = function(on) reactor.setCalls[#reactor.setCalls + 1] = on; reactor.active = on end,
+  } }
+local stacks = { [1] = { [3] = cell, [4] = cell }, [0] = { [1] = cell } }
+local tcalls = {}
+local function tr(name, f) return function(...) tcalls[name] = (tcalls[name] or 0) + 1; return f(...) end end
+M.components["tra00000-0000"] = { type = "transposer", methods = {}, proxy = {
+    getInventoryName = tr("getInventoryName", function(side)
+      return ({ [0] = "minecraft:chest", [1] = "blockReactorChamber" })[side]
+    end),
+    getInventorySize = tr("getInventorySize", function(side) return ({ [0] = 27, [1] = 54 })[side] end),
+    getStackInSlot = tr("getStackInSlot", function(side, slot)
+      M.time = M.time + 0.05 -- one tick a call, as if not direct
+      return stacks[side] and stacks[side][slot]
+    end),
+    transferItem = tr("transferItem", function() error("moved an item") end),
+  } }
+
+ok, out, file = run("--probe")
+check(ok and file:find("== reactor rea00000-0000 (reactor)\n  getHeat  function():number", 1, true)
+  and file:find("  setActive  function(active:boolean)", 1, true), "--probe lists the reactor's methods with docs" .. (ok and "" or tostring(out)))
+check(file:find("producesEnergy() -> true", 1, true) and file:find("getOfferedEnergy() -> 0", 1, true),
+  "it reads producesEnergy and getOfferedEnergy, which --read skips")
+check(file:find('getSlotInfo(3) -> { damage=40 (integer), item="60k Coolant Cell" }', 1, true)
+  and file:find("getSlotInfo(0..58): 1 answered, 5 errors (first: getSlotInfo(0): ", 1, true),
+  "getSlotInfo is tried for each slot; answers shown, errors counted")
+check(file:find('side 1 (top): "blockReactorChamber", 54 slots', 1, true)
+  and file:find("side 2 (north): no inventory", 1, true), "each transposer side: inventory name and size, or none")
+check(file:find('[3] { damage=40 (integer), label="60k Coolant Cell", maxDamage=10000 (integer), name="IC2:reactorCoolantSix", size=1 (integer) }', 1, true)
+  and file:find("[4] 60k Coolant Cell, damage 40/10000", 1, true), "every field of the first stack of a kind; the rest short")
+check(file:find("2 filled; 54 getStackInSlot calls took 2.70 s", 1, true), "reading a side is timed")
+check(tcalls.transferItem == nil and #reactor.setCalls == 0, "--probe moves nothing and never calls setActive")
+
+-- --pause: off for 5 s, read every second, back on; parts' damage from the transposer's reactor side.
+ok, _, file = run("--probe", "--pause")
+check(ok and #reactor.setCalls == 2 and reactor.setCalls[1] == false and reactor.setCalls[2] == true and reactor.active,
+  "--pause: setActive(false), then setActive(true)")
+check(file:find("paused 5 ", 1, true) and file:find("producing=false parts damage=80", 1, true)
+  and file:find("resumed .-producing=true"), "it reads heat, output and parts damage while paused and after")
+reactor.active = false
+reactor.setCalls = {}
+ok, _, file = run("--pause")
+check(ok and #reactor.setCalls == 0 and file:find("pause test skipped: the reactor isn't producing", 1, true),
+  "a reactor that's off is left alone (setActive(true) would start it)")
+reactor.active = true
+M.components["rea00000-0000"].proxy.setActive = function(on)
+  reactor.setCalls[#reactor.setCalls + 1] = on
+  if #reactor.setCalls == 1 then reactor.active = false end
+  if on == true then reactor.active = true end
+end
+local realSleep = os.sleep -- luacheck: ignore 143
+local sleeps = 0
+os.sleep = function(t) sleeps = sleeps + 1; if sleeps == 2 then error("interrupted") end; realSleep(t) end -- luacheck: ignore 142
+ok, _, file = run("--pause")
+os.sleep = realSleep -- luacheck: ignore 142
+check(ok and reactor.setCalls[#reactor.setCalls] == true and reactor.active
+  and file:find("pause test failed: .-interrupted"), "a failure while paused still turns the reactor back on")
+
 H.done()

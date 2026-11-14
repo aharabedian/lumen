@@ -8,6 +8,13 @@
     Calls every read-only method of every `ctype` component and writes what it returns. Read-only means
     named get..., is... or has... AND documented as taking no arguments ("function():..."); nothing else
     is ever called, so it can't change anything. Tables (like getSensorInformation) get a line per entry.
+  discover.probe(component, computer, opts) -> lines[]
+    What reactor control needs, for each IC2 reactor and transposer: the reactor's methods with docs,
+    producesEnergy / getOfferedEnergy, getSlotInfo(n) for n = 0..PROBE_SLOTS; each transposer side's
+    inventory (name, size) and its stacks (getStackInSlot, every field of the first of each kind), timed
+    with computer.uptime. Reads only, unless opts.pause: then, on a reactor that's producing, setActive(false),
+    a reading every second for opts.seconds (default 5) - heat, output, and the total damage of the parts a
+    transposer sees in it - then setActive(true), always. opts.sleep(seconds) waits (os.sleep).
 ]]
 
 local discover = {}
@@ -103,6 +110,159 @@ function discover.read(component, ctype)
       end
     end
     if #skipped > 0 then lines[#lines + 1] = "  not called (may change something, or take arguments): " .. table.concat(skipped, ", ") end
+    lines[#lines + 1] = ""
+  end
+  return lines
+end
+
+---------------------------------------------------------------- probe
+discover.PROBE_SLOTS = 58
+local SIDES = { [0] = "bottom", "top", "north", "south", "west", "east" }
+
+-- A table on one line: key=value, sorted by key.
+local function inline(t)
+  local keys, parts = {}, {}
+  for k in pairs(t) do keys[#keys + 1] = tostring(k) end
+  table.sort(keys)
+  for _, k in ipairs(keys) do
+    local v = t[k]
+    if v == nil then v = t[tonumber(k)] end
+    parts[#parts + 1] = k .. "=" .. (type(v) == "table" and "{...}" or show(v))
+  end
+  return "{ " .. table.concat(parts, ", ") .. " }"
+end
+
+local function try(f, ...)
+  local r = table.pack(pcall(f, ...))
+  if not r[1] then return nil, tostring(r[2]) end
+  return r[2]
+end
+
+-- Which of a transposer's sides holds a reactor (an inventory named like one), or nil.
+local function reactorSide(t)
+  for side = 0, 5 do
+    local name = try(t.getInventoryName, side)
+    if type(name) == "string" and name:lower():find("reactor", 1, true) then return side end
+  end
+end
+
+-- Total damage of the parts in the transposer's reactor side, to see if they change while paused.
+local function partsDamage(t, side)
+  local size, total = try(t.getInventorySize, side) or 0, 0
+  for slot = 1, size do
+    local st = try(t.getStackInSlot, side, slot)
+    if type(st) == "table" and type(st.damage) == "number" then total = total + st.damage end
+  end
+  return total
+end
+
+local function probeReactor(lines, component, addr, proxy)
+  lines[#lines + 1] = ("== reactor %s (%s)"):format(addr, component.type(addr))
+  for _, name in ipairs(methodNames(component, addr)) do
+    lines[#lines + 1] = ("  %s  %s"):format(name, docOf(component, addr, name))
+  end
+  for _, name in ipairs({ "producesEnergy", "getOfferedEnergy", "getHeat", "getMaxHeat", "getReactorEUOutput" }) do
+    if proxy[name] then
+      local v, err = try(proxy[name])
+      lines[#lines + 1] = ("  %s() -> %s"):format(name, err and ("error: " .. err) or show(v))
+    end
+  end
+  if not proxy.getSlotInfo then return end
+  local answered, errors, firstErr = 0, 0, nil
+  for n = 0, discover.PROBE_SLOTS do
+    local v, err = try(proxy.getSlotInfo, n)
+    if err then
+      errors = errors + 1
+      firstErr = firstErr or ("getSlotInfo(" .. n .. "): " .. err)
+    elseif v ~= nil then
+      answered = answered + 1
+      lines[#lines + 1] = ("  getSlotInfo(%d) -> %s"):format(n, type(v) == "table" and inline(v) or show(v))
+    end
+  end
+  lines[#lines + 1] = ("  getSlotInfo(0..%d): %d answered, %d errors%s"):format(discover.PROBE_SLOTS, answered, errors,
+    firstErr and (" (first: " .. firstErr .. ")") or "")
+end
+
+local function probeTransposer(lines, computer, addr, t)
+  lines[#lines + 1] = ("== transposer %s"):format(addr)
+  for side = 0, 5 do
+    local name, err = try(t.getInventoryName, side)
+    local size = name and try(t.getInventorySize, side)
+    if err or not name then
+      lines[#lines + 1] = ("  side %d (%s): %s"):format(side, SIDES[side], err and ("error: " .. err) or "no inventory")
+    else
+      lines[#lines + 1] = ("  side %d (%s): %s, %s slots"):format(side, SIDES[side], show(name), tostring(size))
+      local seen, filled, start = {}, 0, computer.uptime()
+      for slot = 1, math.min(tonumber(size) or 0, 120) do
+        local st, serr = try(t.getStackInSlot, side, slot)
+        if serr then
+          lines[#lines + 1] = ("    [%d] error: %s"):format(slot, serr)
+        elseif type(st) == "table" then
+          filled = filled + 1
+          local kind = tostring(st.name) .. ":" .. tostring(st.label)
+          if not seen[kind] then
+            seen[kind] = true
+            lines[#lines + 1] = ("    [%d] %s"):format(slot, inline(st))
+          else
+            lines[#lines + 1] = ("    [%d] %s, damage %s/%s"):format(slot, tostring(st.label), tostring(st.damage), tostring(st.maxDamage))
+          end
+        end
+      end
+      lines[#lines + 1] = ("    %d filled; %d getStackInSlot calls took %.2f s"):format(filled,
+        math.min(tonumber(size) or 0, 120), computer.uptime() - start)
+    end
+  end
+end
+
+local function pauseTest(lines, computer, proxy, transposers, opts)
+  local seconds = opts.seconds or 5
+  if not proxy.setActive then lines[#lines + 1] = "  pause test: no setActive"; return end
+  if try(proxy.producesEnergy) ~= true then
+    lines[#lines + 1] = "  pause test skipped: the reactor isn't producing (start it, then run --pause again)"
+    return
+  end
+  local parts
+  for _, t in ipairs(transposers) do
+    local side = reactorSide(t)
+    if side then parts = function() return partsDamage(t, side) end; break end
+  end
+  local function sample(label)
+    lines[#lines + 1] = ("  %-8s t=%.2f heat=%s output=%s producing=%s parts damage=%s"):format(label,
+      computer.uptime(), show(try(proxy.getHeat)), show(try(proxy.getReactorEUOutput)), show(try(proxy.producesEnergy)),
+      parts and tostring(parts()) or "(no transposer on the reactor)")
+  end
+  lines[#lines + 1] = ("  pause test: setActive(false) for %d s, then setActive(true)"):format(seconds)
+  sample("before")
+  local ok, err = pcall(function()
+    local _, e = try(proxy.setActive, false)
+    if e then error("setActive(false): " .. e, 0) end
+    for i = 1, seconds do opts.sleep(1); sample("paused " .. i) end
+  end)
+  local _, e2 = try(proxy.setActive, true)
+  if not ok then lines[#lines + 1] = "  pause test failed: " .. tostring(err) end
+  if e2 then lines[#lines + 1] = "  setActive(true) failed: " .. e2 .. " - CHECK THE REACTOR" end
+  opts.sleep(1)
+  sample("resumed")
+end
+
+function discover.probe(component, computer, opts)
+  opts = opts or {}
+  local lines, transposers = {}, {}
+  for _, c in ipairs(sortedComponents(component, "transposer")) do transposers[#transposers + 1] = component.proxy(c.addr) end
+  local reactors = {}
+  for _, ctype in ipairs({ "reactor", "reactor_chamber" }) do
+    for _, c in ipairs(sortedComponents(component, ctype)) do reactors[#reactors + 1] = c end
+  end
+  if #reactors == 0 then lines[#lines + 1] = "no reactor component found (an adapter next to the reactor or a chamber)" end
+  for _, c in ipairs(reactors) do
+    local proxy = component.proxy(c.addr)
+    probeReactor(lines, component, c.addr, proxy)
+    if opts.pause then pauseTest(lines, computer, proxy, transposers, opts) end
+    lines[#lines + 1] = ""
+  end
+  if #transposers == 0 then lines[#lines + 1] = "no transposer found" end
+  for _, c in ipairs(sortedComponents(component, "transposer")) do
+    probeTransposer(lines, computer, c.addr, component.proxy(c.addr))
     lines[#lines + 1] = ""
   end
   return lines
