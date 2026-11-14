@@ -5,6 +5,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-13
+
 ### Added
 - **The SPECTRA logo** in pixel art for a moment while `lumen` starts, with LUMEN's name and version.
 
