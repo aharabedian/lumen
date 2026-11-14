@@ -20,6 +20,8 @@ local filesystem = require("filesystem")
 local term      = require("term")
 local config    = require("lumen.config")
 local App       = require("lumen.app")
+local Gui       = require("lumen.gui")
+local splash    = require("lumen.splash")
 
 local path = ({ ... })[1] or "/home/lumen.cfg"
 local cfg, err = config.load(path)
@@ -36,6 +38,8 @@ local statePath = (path:match("^(.*)/[^/]*$") or ".") .. "/lumen-state.cfg"
 local app = App.new(cfg, { component = component, gpu = gpu, w = w, h = h,
   modem = cfg.lensPort and component.modem or nil, beep = computer.beep,
   filesystem = filesystem, computer = computer, statePath = statePath })
+splash.show(gpu, w, h, "LUMEN", require("lumen.version"), Gui.C.accent)
+os.sleep(splash.SECONDS)   -- yields: OpenOS keeps running while the logo shows
 
 local function main()
   app:start(computer.uptime())

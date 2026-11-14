@@ -5,6 +5,13 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **The SPECTRA logo** in pixel art for a moment while `lumen` starts, with LUMEN's name and version.
+
+### Changed
+- **Colors** follow the SPECTRA logo: LUMEN green (`#4FD17A`) as the accent, and the logo's ink, background
+  and green, yellow, red and blue for status.
+
 ## [0.1.0] - 2026-11-12
 
 The first release: the power screen, generators and reactors, switches, history, and alerts that don't cry wolf.

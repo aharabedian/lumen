@@ -110,7 +110,7 @@ run(cfgPath, t0 + 1300, function(_, t)
   if not seen.alert and M.find("Main empty in", 1) then seen.alert = { t = t - t0, text = M.find("(draining with Vac nuke on)", 1) } end
 end)
 check(seen.alert and seen.alert.text, "on and still draining: 'empty in ... (draining with Vac nuke on)'")
-check(seen.alert.t >= 900, ("not before 10 minutes on and 5 minutes held (%ds)"):format(seen.alert and seen.alert.t or -1))
+check(seen.alert.t >= 900, ("not before 10 minutes on and 5 minutes held (%.1fs)"):format(seen.alert and seen.alert.t or -1))
 world.gen = 300000
 
 ---------------------------------------------------------------- by hand, kept across a restart

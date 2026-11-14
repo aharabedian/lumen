@@ -21,6 +21,7 @@ return {
   { "lib/lumen/setup/render.lua", "lib/lumen/setup/render.lua" },
   { "lib/lumen/setup/steps.lua", "lib/lumen/setup/steps.lua" },
   { "lib/lumen/sources.lua", "lib/lumen/sources.lua" },
+  { "lib/lumen/splash.lua", "lib/lumen/splash.lua" },
   { "lib/lumen/state.lua", "lib/lumen/state.lua" },
   { "lib/lumen/telemetry.lua", "lib/lumen/telemetry.lua" },
   { "lib/lumen/version.lua", "lib/lumen/version.lua" },
