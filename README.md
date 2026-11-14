@@ -4,9 +4,9 @@
 **OpenComputers**: Lapotronic Supercapacitors, generators and the rest of a base's power, as GTNH
 progresses.
 
-A sibling of [PRISM](https://github.com/aharabedian/prism) (item routing) and
-[LENS](https://github.com/aharabedian/lens) (base-wide monitoring). Like PRISM, LUMEN runs on its own and
-can report to a LENS hub.
+**[Website](https://aharabedian.github.io/spectra/lumen/)** · **[Docs](https://aharabedian.github.io/spectra/lumen/docs/)** · [Changelog](CHANGELOG.md) · [Install](#install)
+
+Part of **[SPECTRA](https://github.com/aharabedian/spectra)**, OpenComputers programs for running a GTNH base: 🟧 [PRISM](https://github.com/aharabedian/prism) (items) · 🟦 [LENS](https://github.com/aharabedian/lens) (monitoring) · **🟩 LUMEN** (power). Each runs on its own.
 
 **`lumen`** shows every LSC a computer reaches on one screen, with history and alerts that don't cry wolf; shows
 generators and IC2 reactors; switches generators on and off with the LSCs' fill (a redstone signal or a GT

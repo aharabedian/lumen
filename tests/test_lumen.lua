@@ -29,12 +29,13 @@ local function run(cfgPath, untilTime, events)
       return { "interrupted" } -- QUIT didn't work: stop anyway (and fail below)
     end
   end
-  local errs = {}
+  local errs, slept = {}, M.slept
   local realStderr = io.stderr
   io.stderr = { write = function(_, s) errs[#errs + 1] = s end } -- luacheck: ignore 122
   local ok, err = pcall(H.run, "lumen.lua", cfgPath)
   io.stderr = realStderr -- luacheck: ignore 122
   check(ok and #errs == 0, "runs without errors" .. ((ok and #errs == 0) and "" or (": " .. tostring(err or errs[1]))))
+  check(M.slept - slept == require("lumen.splash").SECONDS, "the SPECTRA logo shows while lumen starts")
   return quitAt
 end
 
@@ -50,7 +51,8 @@ check(M.pulls == quitAt, "QUIT stops the program")
 check(M.find("LUMEN", 1) and M.find(" OK ", 1) and M.find("1 LSC   95.0% full   net +820 EU/t", 1), "header: health, fill, net")
 local _, y = M.find("Main", 2)
 check(y == 3 and M.find("10.77G / 11.34G EU  95.0%", 3), "the panel: name, stored / capacity, percent")
-check(M.bgAt(2, 4) == 0x4cd17a and M.bgAt(2, 9) == 0x4cd17a and M.bgAt(158, 4) == 0x2c3640,
+local C = require("lumen.gui").C
+check(M.bgAt(2, 4) == C.good and M.bgAt(2, 9) == C.good and M.bgAt(158, 4) == C.line,
   "a big screen gets a tall fill bar, green, filled to 95%")
 check(M.find("in 65.54k   out 64.72k   net +820 EU/t", 3) and M.find("full in 10h 25m", 3), "flows and time to full")
 check(M.find("net 5 min +370   1 h +82 EU/t", 3) and M.find("loss 65 EU/t   maintenance ok", 3), "longer averages, loss, maintenance")

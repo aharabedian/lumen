@@ -27,7 +27,8 @@ path, forget cached `lumen.*` modules, and say "run lumen-update" if they're mis
 | `lumen.frame` | A frame of row segments and touch targets, and widgets: buttons, bars, charts |
 | `lumen.config` | `/home/lumen.cfg`: defaults and checks |
 | `lumen.telemetry` | Optional reporting to LENS (lens/1) |
-| `lumen.gui` | Palette and GPU helpers (the same as PRISM's and LENS's) |
+| `lumen.gui` | Palette (the SPECTRA logo's, LUMEN green as the accent) and GPU helpers (the same as PRISM's and LENS's) |
+| `lumen.splash` | The SPECTRA logo in pixel art while `lumen` starts: `show(gpu, w, h, name, version, accent)`; `rows(scale)` is pure |
 | `lumen.lens.metrics`, `lumen.lens.codec` | **Vendored from LENS**, byte for byte: never edit here. Change LENS, then `tools/sync-lens.sh` (a test compares them with `../lens`) |
 | `lumen.discover` | Component reports, and reading every read-only method (named get/is/has, documented as taking no arguments) |
 | `lumen.lsc` | Reads an LSC's `getSensorInformation` lines: stored, capacity, fill %, averages (5 s / 5 min / 1 h), time to full/empty, maintenance, capacitor counts |
@@ -53,3 +54,4 @@ The tests run against `tests/mocks/oc.lua`. This table says which of its behavio
 | An IC2 reactor is component `reactor` (or `reactor_chamber`) with `getHeat`, `getMaxHeat`, `getReactorEUOutput`, `producesEnergy` | Assumed (OpenComputers' IC2 driver). Run `lumen-discover reactor` and `lumen-discover --read reactor` |
 | `filesystem.lastModified` returns real-world milliseconds, so history survives a restart | Assumed: without it, history starts again on each run |
 | `math.random(m, n)` doesn't return an integer (the mock returns floats) | Seen in game (PRISM and LENS) |
+| `os.sleep` (OpenOS) waits while yielding; `gpu.set` draws `▀` with the foreground on top (the splash's half-block pixels) | **Unverified** |
