@@ -165,7 +165,7 @@ check(file:find('getSlotInfo(0, 0) -> { canStoreHeat=false, heat=0 (integer), it
 check(file:find("10 getHeat calls took 0.50 s", 1, true), "the reactor's calls are timed")
 check(file:find("heat rates over 5 s %(producing: true%):\n    %(0, 1%) %d+/360000, %+99%d heat/s, full in %d+ s")
   and file:find("hull 0 -> 0, +0.0 heat/s", 1, true), "each part that stores heat: heat/s and time to full; the hull's too")
-check(file:find("phase: (0, 1) read 100 times; heat changed 5 times, at t=%d+%.70, then every 1.00, 1.00, 1.00, 1.00 s"),
+check(file:find("phase: %(0, 1%) read 100 times; heat changed 5 times, at t=%d+%.70, then every 1.00, 1.00, 1.00, 1.00 s"),
   "the phase: when a cell's heat changes, read every tick")
 check(file:find('side 5 (east): "blockGenerator", 18 slots', 1, true)
   and file:find("side 2 (north): no inventory", 1, true), "each transposer side: inventory name and size, or none")
