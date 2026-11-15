@@ -118,13 +118,14 @@ M.components["rea00000-0000"] = { type = "reactor", methods = {
     getOfferedEnergy = function() return producing() and 1200.0 or 0.0 end,
     getReactorEUOutput = function() return producing() and 1200.0 or 0.0 end,
     getReactorEnergyOutput = function() return 0.0 end,
-    -- (x, y) from 0 (seen in game); a 360k cell at (0, 1) gains 1000 heat/s (a guess).
+    -- (x, y) from 0 (seen in game); a 360k cell at (0, 1) gains 1000 heat each reactor tick, once a second at
+    -- t = n + 0.7 (the phase; seen in game: TO CHECK).
     getSlotInfo = function(x, y)
       tick()
       if y == nil then return nil end -- one argument: nothing (seen in game)
       if x > 2 or y > 5 then error("invalid slot") end
       if x == 0 and y == 1 then
-        return { item = {}, canStoreHeat = true, heat = 40000 + math.floor(M.time * 1000) % 300000, maxHeat = 360000 }
+        return { item = {}, canStoreHeat = true, heat = 40000 + 1000 * math.floor(M.time + 0.3) % 300000, maxHeat = 360000 }
       end
       return { item = {}, canStoreHeat = false, heat = 0, maxHeat = 0 }
     end,
@@ -162,8 +163,10 @@ check(file:find('getSlotInfo(0, 0) -> { canStoreHeat=false, heat=0 (integer), it
   and file:find("getSlotInfo(0..9, 0..6): 18 answered (first 6 shown), 52 errors (first: getSlotInfo(3, 0): ", 1, true)
   and file:find("; 70 calls took 3.50 s", 1, true), "getSlotInfo(x, y) is tried for every column and row, timed")
 check(file:find("10 getHeat calls took 0.50 s", 1, true), "the reactor's calls are timed")
-check(file:find("heat rates over 5 s %(producing: true%):\n    %(0, 1%) %d+/360000, %+1000 heat/s, full in %d+ s")
+check(file:find("heat rates over 5 s %(producing: true%):\n    %(0, 1%) %d+/360000, %+99%d heat/s, full in %d+ s")
   and file:find("hull 0 -> 0, +0.0 heat/s", 1, true), "each part that stores heat: heat/s and time to full; the hull's too")
+check(file:find("phase: (0, 1) read 100 times; heat changed 5 times, at t=%d+%.70, then every 1.00, 1.00, 1.00, 1.00 s"),
+  "the phase: when a cell's heat changes, read every tick")
 check(file:find('side 5 (east): "blockGenerator", 18 slots', 1, true)
   and file:find("side 2 (north): no inventory", 1, true), "each transposer side: inventory name and size, or none")
 check(file:find('[1] { damage=590 (integer), label="Overclocked Heat Vent", maxDamage=10000 (integer), name="IC2:reactorVentGold", size=1 (integer) }', 1, true)

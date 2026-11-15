@@ -11,7 +11,8 @@
   discover.probe(component, computer, opts) -> lines[]
     What reactor control needs, for each IC2 reactor and transposer: the reactor's methods with docs,
     producesEnergy / getOfferedEnergy, 10 getHeat calls timed, getSlotInfo(x, y) for x 0..9, y 0..6 (timed),
-    then each part that stores heat read again opts.seconds (default 5) later: heat/s, time to full; each transposer side's
+    then each part that stores heat read again opts.seconds (default 5) later: heat/s, time to full; one
+    cell read PHASE_CALLS times in a row, to see when the reactor ticks (its phase); each transposer side's
     inventory (name, size) and its stacks (getStackInSlot, every field of the first of each kind) and
     getAllStacks, timed with computer.uptime. Reads only, unless opts.release: setActive(false) on each
     reactor, so only its redstone runs it, and whether it's still producing a second later (opts.sleep
@@ -118,6 +119,7 @@ function discover.read(component, ctype)
 end
 
 ---------------------------------------------------------------- probe
+discover.PHASE_CALLS = 100
 local SIDES = { [0] = "bottom", "top", "north", "south", "west", "east" }
 
 -- A table on one line: key=value, sorted by key.
@@ -211,6 +213,21 @@ local function probeReactor(lines, component, computer, addr, proxy, opts)
   if type(hull0) == "number" and type(hull1) == "number" then
     lines[#lines + 1] = ("    hull %d -> %d, %+.1f heat/s"):format(hull0, hull1, (hull1 - hull0) / (computer.uptime() - t0))
   end
+  -- The reactor's phase: read one cell as fast as calls go (a tick each) for PHASE_CALLS calls, and note
+  -- when its heat changes. A reactor that ticks every 20 game ticks changes every 1.00 s.
+  local c = cells[1]
+  local last, changes = nil, {}
+  for _ = 1, discover.PHASE_CALLS do
+    local v = value(proxy.getSlotInfo, c.x, c.y)
+    local heat = type(v) == "table" and v.heat or nil
+    if last ~= nil and heat ~= nil and heat ~= last then changes[#changes + 1] = computer.uptime() end
+    if heat ~= nil then last = heat end
+  end
+  local gaps = {}
+  for i = 2, #changes do gaps[#gaps + 1] = ("%.2f"):format(changes[i] - changes[i - 1]) end
+  lines[#lines + 1] = ("  phase: (%d, %d) read %d times; heat changed %d times%s%s"):format(c.x, c.y, discover.PHASE_CALLS,
+    #changes, #changes > 0 and (", at t=" .. ("%.2f"):format(changes[1])) or "",
+    #gaps > 0 and (", then every " .. table.concat(gaps, ", ") .. " s") or "")
 end
 
 local function probeTransposer(lines, computer, addr, t)
