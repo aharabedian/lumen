@@ -18,7 +18,7 @@ machine); and can report to LENS.
 
 | In | Out |
 |---|---|
-| Reading LSCs and other GT energy storage: stored EU, input, output, time to full or empty | **Swapping reactor parts while it runs.** OpenComputers can't swap them atomically; Steve's Factory Manager can. LUMEN's reactor control (in progress) stops the reactor before it swaps |
+| Reading LSCs and other GT energy storage: stored EU, input, output, time to full or empty | **Swapping reactor parts.** OpenComputers can't swap them atomically or fast enough; Steve's Factory Manager does it, and LUMEN switches it on and off and watches its fault signal |
 | Simple, safe control: switching generators on and off with the LSC's fill | Anything that needs reactions faster than a computer polling every few seconds |
 | Alerts (low power, draining fast), and reporting to LENS | |
 

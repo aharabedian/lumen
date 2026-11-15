@@ -21,10 +21,10 @@ make screens                      # render the screens the tests draw to PNGs (P
 ## Rules
 
 - **Focused and isolated.** Change only this repo for LUMEN's needs; never add LUMEN features to PRISM or LENS.
-- **Scope:** monitoring, alerts, simple safe control (generators on/off by LSC fill), and **IC2 vacuum reactor
-  control by pause-swap-resume**: OpenComputers can't swap a part atomically, so the reactor is stopped
-  by its redstone (heat freezes when it's off, seen in game) before parts are swapped and checked, then
-  started again. Being built: probe in game first (`lumen-discover --probe`).
+- **Scope:** monitoring, alerts, and simple safe control: generators and reactors on/off (by LSC fill or by
+  hand) with a redstone signal. **SFM swaps reactor parts, not LUMEN**: one computer can't keep up with
+  high-end designs (a cell lasts ~15 s; every call takes a tick, seen in game). LUMEN reads SFM's fault
+  signal, shows it, alerts, and holds that reactor off.
 - **Never call a reactor's `setActive(true)`.** The flag is kept in the reactor and holds it on whatever its
   redstone says, even with the computer off or the adapter broken (seen in game). The mock raises.
 - **Test first, against the mock.** Every behavior change gets a check in `tests/`. Never mark work done
