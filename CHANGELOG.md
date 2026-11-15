@@ -6,6 +6,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Fault inputs on switches** (`fault`): a redstone line from whatever a switch runs that means trouble, such
+  as Steve's Factory Manager's error output on a vacuum reactor. A fault shows FAULT, raises a bad alert, and
+  switches off until it clears; `latch` holds it until RESET on the screen (kept across restarts), `invert`
+  reads an "OK" signal, `stop = false` only alerts. `lumen-setup` asks; LENS gets `lumen_switch_fault`.
 - **`lumen-discover --probe`**: what reactor control needs to know, read only: each IC2 reactor's methods,
   `getSlotInfo(x, y)` for every slot, and each transposer side's inventory and stacks, timed (one by one, and
   `getAllStacks`), how long the reactor's own calls take, and how fast each part that stores heat fills

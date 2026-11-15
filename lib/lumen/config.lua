@@ -131,6 +131,21 @@ function config.checkControl(list)
     end
     if s.lsc ~= nil and not named(s.lsc) then return where .. ": lsc must be an LSC's name (nil: all of them)" end
     if s.source ~= nil and not named(s.source) then return where .. ": source must be a source's name" end
+    if s.fault ~= nil then
+      local f = s.fault
+      if type(f) ~= "table" or not named(f.redstone) then
+        return where .. ': fault needs redstone = "address start" (the component its signal comes into) and a side'
+      end
+      if not (SIDES[f.side] or (math.type(f.side) == "integer" and f.side >= 0 and f.side <= 5)) then
+        return where .. ': fault: side must be "bottom", "top", "north", "south", "west", "east" (or 0-5)'
+      end
+      for _, k in ipairs({ "invert", "latch", "stop" }) do
+        if f[k] ~= nil and type(f[k]) ~= "boolean" then return where .. ": fault: " .. k .. " must be true or false" end
+      end
+      if f.invert == nil then f.invert = false end
+      if f.latch == nil then f.latch = false end
+      if f.stop == nil then f.stop = true end
+    end
   end
 end
 

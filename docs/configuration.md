@@ -54,6 +54,8 @@ How switches behave: [setup](setup.md#switches).
 control = {
   { name = "Vac nuke", redstone = "5e1f0000", side = "north", onBelow = 30, offAbove = 90, source = "Vac nuke" },
   { name = "LFTR", machine = "a1b2c3d4", lsc = "Main", onBelow = 50, offAbove = 95 },
+  { name = "MOX 1", redstone = "3f2a0000", side = "top", onBelow = 30, offAbove = 90,
+    fault = { redstone = "9c1e0000", side = "north", latch = true } },
 },
 ```
 
@@ -69,6 +71,17 @@ control = {
 | `lsc` | all LSCs | Follow one LSC, by name |
 | `source` | | The source it switches: warns when on and it isn't running, or off and it is |
 | `minSwitch` | `60` | Seconds to wait after switching before switching again |
+| `fault` | | Optional: a redstone signal from what it runs that means trouble ([setup](setup.md#fault-inputs)), below |
+
+`fault` keys:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `redstone` | | The start of the Redstone I/O block's or card's address the signal comes into (it may be the switch's own) |
+| `side` | | The side it comes in on, as above |
+| `invert` | `false` | `true`: an OK signal, and trouble when it goes |
+| `latch` | `false` | `true`: stays a fault until **RESET** on the screen, even once the signal goes (for a pulse, or to look first) |
+| `stop` | `true` | Switch off on a fault, whatever the mode, until it clears (or RESET). `false`: an alert only |
 
 ## Alerts
 
@@ -88,11 +101,13 @@ problem goes.
 | An `alwaysOn` source stopped | warn | 5 min |
 | A switch can't be found or switched | bad | 15 s |
 | A switch is on but its source isn't running, or off but it is | warn | 5 min |
+| A switch's fault input signals trouble (or is latched) | bad | 5 s |
+| A switch's fault input can't be read | bad | 15 s |
 | No LSC found | warn | at once |
 
 **Empty within:** for an LSC with switches (its own, or ones following all LSCs), nothing while one is off in
 AUTO (the generators come on at its mark); once all have been on 10 minutes, the rate since they came on. A
-switch set OFF by hand doesn't count. For other LSCs, the `drainAverage` net. The time to empty on the panel is
+switch set OFF by hand, or off for a fault, doesn't count. For other LSCs, the `drainAverage` net. The time to empty on the panel is
 the LSC's own figure, which follows the last few seconds.
 
 ## Reporting to LENS
@@ -123,6 +138,7 @@ Sources have a `source` label and switches a `switch` label:
 | `lumen_reactor_heat_ratio` | 0..1 | A reactor's heat over its max |
 | `lumen_switch_on` | | 1 while the switch has its generators on |
 | `lumen_switch_auto` | | 1 on AUTO, 0 when set by hand |
+| `lumen_switch_fault` | | Switches with a fault input: 1 while it signals trouble (or is latched), else 0 |
 
 LUMEN's alerts go to LENS too, and its health is the worst alert's level.
 

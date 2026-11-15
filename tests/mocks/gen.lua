@@ -2,7 +2,8 @@
 
   local Gen = require("gen")
   local rs = Gen.redstone()            a Redstone I/O block or card: rs.out[side] (0-15), rs.sets (setOutput
-                                       calls); rs.entry for M.components; rs.broken = "text": its calls raise
+                                       calls), rs.inp[side] (0-15, what getInput reads); rs.entry for
+                                       M.components; rs.broken = "text": its calls raise
   local g = Gen.gt("gtpp.multimachine.lftr", { active = true, lines = { ... }, progress = 40, max = 100 })
                                        a GT generator (gt_machine): getSensorInformation returns state.lines;
                                        g.allowed (isWorkAllowed / setWorkAllowed), g.sets
@@ -17,7 +18,7 @@
 local Gen = {}
 
 function Gen.redstone()
-  local rs = { out = {}, sets = 0 }
+  local rs = { out = {}, inp = {}, sets = 0 }
   local function guard() if rs.broken then error(rs.broken) end end
   rs.entry = { type = "redstone", methods = {
       getOutput = "function(side:number):number -- Get the redstone output on the specified side.",
@@ -33,7 +34,9 @@ function Gen.redstone()
         rs.sets = rs.sets + 1
         return old
       end,
-      getInput = function() return 0 end,
+      getInput = function(side)
+        guard(); assert(type(side) == "number", "side must be a number"); return rs.inp[side] or 0
+      end,
     } }
   return rs
 end

@@ -48,8 +48,8 @@ LSC or generator reports, to check the adapters are connected.
   - time to full or empty, as the LSC itself works it out
   - the net over 5 minutes and over 1 hour, passive loss, and maintenance status
   - **a fill history chart** in whatever rows are left (one sample every 30 s, the last 80 minutes)
-- **POWER** (with sources or switches): a row per switch (ON or OFF, why, for how long, and **AUTO / ON /
-  OFF**) and per source (running or idle, EU/t, a reactor's heat, recipe progress, maintenance problems).
+- **POWER** (with sources or switches): a row per switch (ON, OFF or **FAULT**, why, for how long, and **AUTO / ON /
+  OFF**, with **RESET** for a latched fault) and per source (running or idle, EU/t, a reactor's heat, recipe progress, maintenance problems).
 - **Alerts:** bad ones first, each with how long it has lasted. They clear themselves a minute after the
   problem goes away. A new bad alert beeps once.
 
@@ -87,3 +87,20 @@ never flips anything; it waits a minute between switches; and while it can't rea
 is expected: no drain alert, and the panel says *standby*. Once they've been on for 10 minutes, the drain alert
 judges the rate since they came on, so it means "on, and still not keeping up". A switch with a `source` also
 warns when it's on and that source isn't running, or off and it still is.
+
+### Fault inputs
+
+A switch can also watch a **fault signal**: a redstone line from whatever it runs that means trouble. LUMEN
+doesn't care what's behind it; Steve's Factory Manager's error output on a vacuum reactor is one example.
+
+- A fault shows **FAULT** in red, raises a bad alert (after 5 s, so a glitch isn't one), and, unless
+  `stop = false`, switches off at once whatever the mode, until the fault clears. AUTO then waits a minute as
+  after any switch.
+- `latch = true`: it stays a fault until you tap **RESET**, even once the signal goes. Kept across restarts.
+- `invert = true` for an "OK" signal that drops when something fails.
+- A fault input that can't be read is an alert of its own; it doesn't switch anything.
+
+LUMEN only reads the line, every `interval`. What it runs keeps its own safety: a Redstone I/O block keeps its
+output when its computer stops (seen in game), so if LUMEN isn't running, nothing it switched changes.
+
+![A latched fault](images/lumen-fault.png)

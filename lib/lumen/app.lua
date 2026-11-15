@@ -49,7 +49,7 @@ function app.new(cfg, env)
   self.history = history.new(fresh and saved.history or nil)
   self.power = power.new(env.component, cfg)
   self.sourceReader = sources.new(env.component, cfg)
-  self.control = control.new(env.component, cfg, saved.modes)
+  self.control = control.new(env.component, cfg, saved.modes, saved.faults)
   self.alerts = alerts.tracker()
   self.screen = screen.new(env.gpu, env.w, env.h)
   self.lens = Telemetry.open(cfg, env.modem)
@@ -60,6 +60,10 @@ function app.new(cfg, env)
     range = function(k) self.range = k end,
     mode = function(name, mode)
       self.control:setMode(name, mode, self.now or 0)
+      self.dirty = true
+    end,
+    reset = function(name)
+      self.control:reset(name, self.now or 0)
       self.dirty = true
     end,
   }
@@ -115,7 +119,7 @@ end
 function App:save()
   self.dirty = false
   if not self.env.statePath then return end
-  pcall(state.save, self.env.statePath, { saved = self:time(), modes = self.control:modes(),
+  pcall(state.save, self.env.statePath, { saved = self:time(), modes = self.control:modes(), faults = self.control:faults(),
     history = self.history:save() })
 end
 
@@ -127,6 +131,11 @@ function App:tick(now)
   self.total = power.total(self.readings)
   self.sources = self.sourceReader:read()
   self.control:update(self.readings, self.total, now)
+  local latched = {}
+  for name in pairs(self.control:faults()) do latched[#latched + 1] = name end
+  table.sort(latched)
+  latched = table.concat(latched, "\n")
+  if latched ~= (self.latched or "") then self.latched, self.dirty = latched, true end -- kept at once, not in 5 min
 
   local all, keep = { table.unpack(self.readings) }, {}
   if self.total then all[#all + 1] = self.total end

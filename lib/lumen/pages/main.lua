@@ -74,15 +74,28 @@ local function panel(f, r, x, y, width, h, level, open)
 end
 
 ---------------------------------------------------------------- POWER: switches and sources
+local function faultText(f, s)
+  local fl = s.fault
+  if fl.err then return "fault input: " .. fl.err end
+  local stops = s.cfg == nil or s.cfg.fault == nil or s.cfg.fault.stop ~= false
+  local t = "fault signal" .. (stops and ", switched off" or ", still running")
+  if fl.latched then t = t .. (fl.signal and "   latched" or "   gone: tap RESET") end
+  if fl.since and f.now then t = t .. "   for " .. ago(f.now - fl.since) end
+  return t
+end
+
 local function switchRow(f, s, x, y, width, actions)
-  local dot = s.err and C.bad or (s.on and C.good) or C.dim
+  local faulted = s.fault and (s.fault.on or s.fault.err)
+  local dot = (s.err or faulted) and C.bad or (s.on and C.good) or C.dim
   f:text(x, y, "●", dot)
   f:text(x + 2, y, Gui.fit(s.name, 16), C.text)
-  local state = s.err and "ERROR" or (s.on == nil and "?" or (s.on and "ON" or "OFF"))
-  f:text(x + 19, y, Gui.fit(state, 5), dot)
+  local state = s.err and "ERROR" or (s.fault and s.fault.on and "FAULT") or (s.on == nil and "?" or (s.on and "ON" or "OFF"))
+  f:text(x + 19, y, Gui.fit(state, 5), (s.fault and s.fault.on) and C.bad or dot)
   local bx = x + width - 18
+  local resetX = s.fault and s.fault.latched and bx - 8 or nil
   local detail
   if s.err then detail = s.err
+  elseif faulted then detail = faultText(f, s)
   else
     if s.mode == "auto" then
       detail = ("auto: on below %g%%, off above %g%%"):format(s.onBelow, s.offAbove)
@@ -92,7 +105,8 @@ local function switchRow(f, s, x, y, width, actions)
     end
     if s.since and f.now then detail = detail .. "   for " .. ago(f.now - s.since) end
   end
-  f:text(x + 25, y, Gui.fit(detail, math.max(0, bx - x - 26)), s.err and C.bad or C.dim)
+  f:text(x + 25, y, Gui.fit(detail, math.max(0, (resetX or bx) - x - 26)), (s.err or faulted) and C.bad or C.dim)
+  if resetX then f:button(resetX, y, "RESET", function() actions.reset(s.name) end) end
   bx = f:button(bx, y, "AUTO", function() actions.mode(s.name, "auto") end, s.mode == "auto")
   bx = f:button(bx - 1, y, "ON", function() actions.mode(s.name, "on") end, s.mode == "on")
   f:button(bx - 1, y, "OFF", function() actions.mode(s.name, "off") end, s.mode == "off")
