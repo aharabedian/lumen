@@ -5,7 +5,7 @@
 | Program (`src/`) | Does |
 |---|---|
 | `lumen.lua` | The power screen. The event loop only: the work is in `lumen.app` |
-| `lumen-setup.lua` | Guided setup: writes `/home/lumen.cfg` and `.shrc` (`lumen.setup.*`) |
+| `lumen-setup.lua` | Setup: the touchscreen editor (80x25 or more), or the text questions (`--text`, or a smaller screen); writes `/home/lumen.cfg` and `.shrc` (`lumen.setup.*`) |
 | `lumen-discover.lua` | Lists components with every method and doc; `--read` shows what the read-only ones return; `--probe` reads IC2 reactors and transposers for reactor control; `--release` calls `setActive(false)` on reactors (`lumen.discover`) |
 | `lumen-update.lua` | Installs and updates from GitHub what `manifest.lua` lists. Self-contained: it installs the modules |
 
@@ -24,7 +24,7 @@ path, forget cached `lumen.*` modules, and say "run lumen-update" if they're mis
 | `lumen.state` | `/home/lumen-state.cfg`: manual modes and history between runs; a real-time clock from a file's modification time |
 | `lumen.alerts` | Alerts from readings, sources and switches (pure), with a hold each; the drain judgement (`alerts.drain`); a tracker that raises after the hold and clears a minute after; health |
 | `lumen.screen` | Draws a model: the header, then `lumen.pages.main` (panels, POWER, alerts) or `lumen.pages.detail` (one LSC). Sends the GPU only changed rows or segments |
-| `lumen.frame` | A frame of row segments and touch targets, and widgets: buttons, bars, charts |
+| `lumen.frame` | A frame of row segments and touch targets, and widgets: buttons, bars, charts; `paint` sends the GPU only what changed (a row with overlapping segments, whole) |
 | `lumen.config` | `/home/lumen.cfg`: defaults and checks |
 | `lumen.telemetry` | Optional reporting to LENS (lens/1) |
 | `lumen.gui` | Palette (the SPECTRA logo's, LUMEN green as the accent) and GPU helpers (the same as PRISM's and LENS's) |
@@ -32,7 +32,11 @@ path, forget cached `lumen.*` modules, and say "run lumen-update" if they're mis
 | `lumen.lens.metrics`, `lumen.lens.codec` | **Vendored from LENS**, byte for byte: never edit here. Change LENS, then `tools/sync-lens.sh` (a test compares them with `../lens`) |
 | `lumen.discover` | Component reports; reading every read-only method (named get/is/has, documented as taking no arguments); the reactor probe (reactor slots, transposer sides and stacks, timed) and release |
 | `lumen.lsc` | Reads an LSC's `getSensorInformation` lines: stored, capacity, fill %, averages (5 s / 5 min / 1 h), time to full/empty, maintenance, capacitor counts |
-| `lumen.setup.steps`, `.render`, `.input` | `lumen-setup`'s questions, the commented `lumen.cfg` it writes, and terminal prompts |
+| `lumen.setup.screen` | `lumen-setup`'s touchscreen editor: tabs, the pick view, review before SAVE. Draws with `lumen.frame` |
+| `lumen.setup.editor` | The config as the editor changes it (pure): rows per tab, switches (+ NEW, COPY to the next block and name, DELETE), checks, changes, warnings |
+| `lumen.setup.scan` | What's attached, for the editor: LSCs, reactors, GT machines, redstone components; a block's redstone inputs (READ). Read only |
+| `lumen.setup.files` | Loading the old `lumen.cfg`, `.shrc`'s lumen line, filling defaults and checking before writing, saving with `.bak`: shared by both modes |
+| `lumen.setup.steps`, `.render`, `.input` | The text setup's questions, the commented `lumen.cfg` both modes write, and terminal prompts |
 | `lumen.version` | The release string; `lumen-update` keeps its own copy (a test checks) |
 
 ## What's verified in game

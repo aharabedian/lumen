@@ -33,12 +33,6 @@ local HEALTH_TEXT = { ok = "OK", warn = "WARN", bad = "BAD" }
 local signed = frame.signed
 screen.si = frame.si
 
-local function rowKey(row)
-  local parts = { row.bg }
-  for _, s in ipairs(row.segs) do parts[#parts + 1] = s[1] .. "\1" .. s[2] .. "\1" .. s[3] .. "\1" .. s[4] end
-  return table.concat(parts, "\2")
-end
-
 local function header(f, m, actions)
   f:rowBg(1, C.panel)
   f:text(2, 1, "LUMEN", C.accent, C.panel)
@@ -80,50 +74,13 @@ function S:build(m, actions)
   return f
 end
 
--- Same background and the same segments at the same places with the same widths: only texts or colors
--- changed, so those segments can be redrawn in place.
-local function sameShape(a, b)
-  if not a or a.bg ~= b.bg or #a.segs ~= #b.segs then return false end
-  for i, sa in ipairs(a.segs) do
-    local sb = b.segs[i]
-    if sa[1] ~= sb[1] or Gui.len(sa[2]) ~= Gui.len(sb[2]) then return false end
-  end
-  return true
-end
-
 function S:draw(m, actions)
   local f = self:build(m, actions)
-  local ui = self.ui
-  for y = 1, self.h do
-    local row = f.rows[y]
-    local key = rowKey(row)
-    local last = self.last[y]
-    if not last or last.key ~= key then
-      if sameShape(last and last.row, row) then
-        for i, sg in ipairs(row.segs) do
-          local old = last.row.segs[i]
-          if old[2] ~= sg[2] or old[3] ~= sg[3] or old[4] ~= sg[4] then ui.put(sg[1], y, sg[2], sg[3], sg[4]) end
-        end
-      else
-        ui.fill(1, y, self.w, 1, row.bg)
-        for _, sg in ipairs(row.segs) do ui.put(sg[1], y, sg[2], sg[3], sg[4]) end
-      end
-      self.last[y] = { key = key, row = row }
-    end
-  end
+  frame.paint(self.ui, self.last, f)
   self.hits = f.hits
 end
 
-function S:tap(x, y)
-  for i = #self.hits, 1, -1 do
-    local h = self.hits[i]
-    if x >= h[1] and x <= h[3] and y >= h[2] and y <= h[4] then
-      if h[5] then h[5]() end
-      return true
-    end
-  end
-  return false
-end
+function S:tap(x, y) return frame.tap(self.hits, x, y) end
 
 function S:restore() self.ui.restore() end
 

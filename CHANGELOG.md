@@ -6,6 +6,12 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **`lumen-setup` on the touchscreen**: tabs for LSCs, sources, switches and general settings (alerts, LENS,
+  start on boot); tap a row to change it. For a row of reactors, **COPY** makes the next switch from the one
+  selected (the next name and the next free redstone block, the same side, marks and fault input); long
+  choices open a list; **READ** shows which sides of a block have a signal coming in, to find it. **SAVE** shows
+  the changes and warnings first (two switches on one output, a component not found...). `--text` (or a screen
+  under 80x25) asks the questions on the terminal as before.
 - **Fault inputs on switches** (`fault`): a redstone line from whatever a switch runs that means trouble, such
   as Steve's Factory Manager's error output on a vacuum reactor. A fault shows FAULT, raises a bad alert, and
   switches off until it clears; `latch` holds it until RESET on the screen (kept across restarts), `invert`

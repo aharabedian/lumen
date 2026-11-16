@@ -26,10 +26,12 @@ This installs the programs in `/home/bin` and the modules in `/home/lib/lumen`, 
 
 ## Run
 
-1. **`lumen-setup`** finds the LSCs, generators, reactors and redstone components the computer reaches and
-   asks: names, which generators to show, [switches](#switches), alert levels, LENS, and starting on boot. It
-   shows the file before saving `/home/lumen.cfg` (the old one is kept as `lumen.cfg.bak`). Run it again any
-   time; Enter keeps what's there. Everything it writes is in [configuration](configuration.md).
+1. **`lumen-setup`** finds the LSCs, generators, reactors and redstone components the computer reaches, and
+   opens [an editor on the screen](#the-setup-screen) for names, which generators to show,
+   [switches](#switches), alerts, LENS, and starting on boot. It shows what changes before saving
+   `/home/lumen.cfg` (the old one is kept as `lumen.cfg.bak`). `lumen-setup --text` (or a screen smaller than
+   80 × 25) asks the same on the terminal instead; Enter keeps what's there. Run it again any time. Everything
+   it writes is in [configuration](configuration.md).
 2. Run **`lumen`**. Tap **QUIT** or press Ctrl+C to stop.
 
 Without a config file, LUMEN shows every LSC with the default alerts. `lumen-discover --read` shows what an
@@ -67,6 +69,29 @@ on. **BACK** returns. History survives a restart (in `/home/lumen-state.cfg`).
 On a tier 2 screen, panels keep the essentials:
 
 ![Tier 2](images/lumen-tier2.png)
+
+## The setup screen
+
+![lumen-setup on a tier 2 screen: 12 reactor switches](images/lumen-setup.png)
+
+| Tab | Tap a row to |
+|---|---|
+| **LSCS** | Name it |
+| **SOURCES** | Show a GT machine or not; name it (reactors always show); warn when it stops (**always on**) |
+| **SWITCHES** | Change it: name, marks, **REDSTONE** (block, side, **SIGNAL = STOP**) or **GT MACHINE**, the LSC it follows, its source, its [fault input](#fault-inputs). **+ NEW**, **COPY**, **DELETE** |
+| **GENERAL** | Alert levels, beep, LENS, start on boot; below, the warnings |
+
+Tap a field to type (Enter keeps it, Esc cancels). A choice ending in ▸ opens a list, saying who already uses
+each block. **RESCAN** looks for components again; **TEXT SETUP** switches to the questions.
+
+**Many reactors:** set one switch up, then **COPY** it for each of the others: the copy gets the next name
+(MOX 1, MOX 2...) and the next redstone block no switch uses, with the same side, marks and fault input (moved
+to the new block when it read the old one's). Then check each one's block and pick its source. To tell blocks
+apart, put a lever against one (or trip what it watches) and tap **READ**: it shows which sides of the
+switch's blocks have a signal coming in. An Analyzer shows a block's address too.
+
+**SAVE** lists what changes and warns before writing: a component not found, two switches on one output, a
+fault read on a side a switch drives, a source or LSC a switch names that isn't there.
 
 ## Switches
 

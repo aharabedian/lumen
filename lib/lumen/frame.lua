@@ -9,6 +9,9 @@
   f:bar(x, y, width, rows, fill, color)           a fill bar
   f:chart(x, y, width, rows, values)              values 0..1 as an eighth-block chart, newest on the right
   f.rows[y] = { bg, segs = { { x, text, fg, bg }... } }, f.hits
+  frame.paint(ui, last, f)           send a lumen.gui ui only the rows that changed since the last paint;
+                                     last: a table the caller keeps (empty at first, or to repaint everything)
+  frame.tap(hits, x, y) -> bool      run the touch target under (x, y) (the last one drawn wins)
   frame.si, frame.signed(v), frame.ago(seconds)   "4.20k", "+4.20k", "3h05m"
   frame.C                                         the palette (lumen.gui)
 ]]
@@ -85,6 +88,63 @@ function F:chart(x, y, width, rows, values)
     end
     self:text(x, y + (rows - 1 - k), table.concat(out), C.info)
   end
+end
+
+local function rowKey(row)
+  local parts = { row.bg }
+  for _, s in ipairs(row.segs) do parts[#parts + 1] = s[1] .. "\1" .. s[2] .. "\1" .. s[3] .. "\1" .. s[4] end
+  return table.concat(parts, "\2")
+end
+
+-- Whether any two segments of a row cover the same cell (a button drawn over text).
+local function overlaps(segs)
+  local spans = {}
+  for _, sg in ipairs(segs) do spans[#spans + 1] = { sg[1], sg[1] + Gui.len(sg[2]) - 1 } end
+  table.sort(spans, function(a, b) return a[1] < b[1] end)
+  for i = 2, #spans do if spans[i][1] <= spans[i - 1][2] then return true end end
+  return false
+end
+
+-- Same background and the same segments at the same places with the same widths, none over another: only
+-- texts or colors changed, so those segments can be redrawn in place.
+local function sameShape(a, b)
+  if not a or a.bg ~= b.bg or #a.segs ~= #b.segs then return false end
+  for i, sa in ipairs(a.segs) do
+    local sb = b.segs[i]
+    if sa[1] ~= sb[1] or Gui.len(sa[2]) ~= Gui.len(sb[2]) then return false end
+  end
+  return not overlaps(b.segs)
+end
+
+function frame.paint(ui, last, f)
+  for y = 1, f.h do
+    local row = f.rows[y]
+    local key = rowKey(row)
+    local was = last[y]
+    if not was or was.key ~= key then
+      if sameShape(was and was.row, row) then
+        for i, sg in ipairs(row.segs) do
+          local old = was.row.segs[i]
+          if old[2] ~= sg[2] or old[3] ~= sg[3] or old[4] ~= sg[4] then ui.put(sg[1], y, sg[2], sg[3], sg[4]) end
+        end
+      else
+        ui.fill(1, y, f.w, 1, row.bg)
+        for _, sg in ipairs(row.segs) do ui.put(sg[1], y, sg[2], sg[3], sg[4]) end
+      end
+      last[y] = { key = key, row = row }
+    end
+  end
+end
+
+function frame.tap(hits, x, y)
+  for i = #hits, 1, -1 do
+    local h = hits[i]
+    if x >= h[1] and x <= h[3] and y >= h[2] and y <= h[4] then
+      if h[5] then h[5]() end
+      return true
+    end
+  end
+  return false
 end
 
 return frame
