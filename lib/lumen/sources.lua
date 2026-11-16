@@ -32,7 +32,7 @@ function sources.new(component, cfg)
 end
 
 local function call(proxy, name)
-  if type(proxy[name]) ~= "function" then return nil end
+  if proxy[name] == nil then return nil end   -- in game, methods are callable tables, not functions
   local ok, v = pcall(proxy[name])
   if ok then return v end
 end

@@ -23,6 +23,11 @@ versions follow [Semantic Versioning](https://semver.org/).
 - **`lumen-discover --release`**: `setActive(false)` on each IC2 reactor. A computer's `setActive(true)` holds a
   reactor on whatever its redstone says, even after the computer is gone; this hands it back to its redstone.
 
+### Fixed
+- IC2 reactors showed "can't be read: no answer", and GT generators never showed as running. LUMEN skipped any
+  method that wasn't a Lua function, and in game a component's methods never are. The LSC's stored-EU fallback
+  had the same fault.
+
 ## [0.2.0] - 2026-11-13
 
 ### Added

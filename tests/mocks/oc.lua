@@ -161,6 +161,22 @@ end
 
 ---------------------------------------------------------------- component
 M.components = {}
+-- A proxy as OpenComputers hands it out: its methods are callable tables, not functions (in game,
+-- type(proxy.getHeat) == "table"). Reads and writes go through to the test's table, so tests can keep
+-- changing it. Confirmed in game: a type(...) == "function" check made every reactor read fail.
+local function ocProxy(p)
+  if type(p) ~= "table" then return p end
+  return setmetatable({}, {
+    __index = function(_, k)
+      local v = p[k]
+      if type(v) ~= "function" then return v end
+      return setmetatable({ name = k }, { __call = function(_, ...) return v(...) end })
+    end,
+    __newindex = p,
+    __pairs = function() return pairs(p) end,
+  })
+end
+
 local component = {
   gpu = gpu,
   -- Like OpenOS: a callable table address -> type; filter matches part of the type unless exact.
@@ -187,7 +203,7 @@ local component = {
     for name in pairs(c.methods or {}) do out[name] = true end
     return out
   end,
-  proxy = function(addr) local c = M.components[addr]; return c and c.proxy end,
+  proxy = function(addr) local c = M.components[addr]; return c and ocProxy(c.proxy) end,
   doc = function(addr, method)
     local c = M.components[addr]
     return c and c.methods and c.methods[method] or nil
@@ -204,7 +220,7 @@ local component = {
 setmetatable(component, { __index = function(_, k)
   if k == "modem" then return M.modem end
   local addr = component.list(k, true)()
-  return addr and M.components[addr].proxy or nil
+  return addr and ocProxy(M.components[addr].proxy) or nil
 end })
 
 ---------------------------------------------------------------- unicode, filesystem, internet
