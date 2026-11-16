@@ -27,7 +27,7 @@ path, forget cached `lumen.*` modules, and say "run lumen-update" if they're mis
 | `lumen.frame` | A frame of row segments and touch targets, and widgets: buttons, bars, charts; `paint` sends the GPU only what changed (a row with overlapping segments, whole) |
 | `lumen.config` | `/home/lumen.cfg`: defaults and checks |
 | `lumen.telemetry` | Optional reporting to LENS (lens/1) |
-| `lumen.gui` | Palette (the SPECTRA logo's, LUMEN green as the accent) and GPU helpers (the same as PRISM's and LENS's) |
+| `lumen.gui` | Palette (the SPECTRA logo's, LUMEN green as the accent), GPU helpers (the same as PRISM's and LENS's), and the resolution to draw at (`"fit"`: the screen's shape) |
 | `lumen.splash` | The SPECTRA logo in pixel art while `lumen` starts: `show(gpu, w, h, name, version, accent)`; `rows(scale)` is pure |
 | `lumen.lens.metrics`, `lumen.lens.codec` | **Vendored from LENS**, byte for byte: never edit here. Change LENS, then `tools/sync-lens.sh` (a test compares them with `../lens`) |
 | `lumen.discover` | Component reports; reading every read-only method (named get/is/has, documented as taking no arguments); the reactor probe (reactor slots, transposer sides and stacks, timed) and release |
@@ -61,6 +61,7 @@ The tests run against `tests/mocks/oc.lua`. This table says which of its behavio
 | An IC2 reactor's heat and parts don't change while it's off | Seen in game (the user, 2026-11-14) |
 | `setActive` is a second "on" input beside redstone: the reactor runs if **either** is on. `setActive(false)` can't stop a reactor its redstone runs; `setActive(true)` holds one on whatever its redstone says | Seen in game (with the redstone on, then off, 2026-11-14) |
 | The `setActive(true)` flag is **kept in the reactor**: it stayed on with the computer off, the adapter broken, and a lever switched on and off. Only `setActive(false)` clears it. LUMEN never sets it | Seen in game (the user, 2026-11-14) |
+| `screen.getAspectRatio()` gives a multiblock screen's size in blocks; text is drawn as large as fits keeping the resolution's shape; characters are twice as tall as wide; about 1/8 block of border at each edge (`resolution = "fit"`: 160 × 33 on 7 × 3) | Seen in game on a 3 × 4 screen with the same formula (2026-11-12); the 1/8-block border is an estimate |
 | A **Redstone I/O block keeps its output** when its computer shuts down, and when the cable to it is broken | Seen in game (2026-11-14): never run a reactor through one |
 | A **redstone card** in the computer's case drops its output to 0 when the computer shuts down (cleanly) | Seen in game (2026-11-14) |
 | A redstone card's output drops to 0 when the computer loses power | Seen in game (2026-11-14) |

@@ -48,7 +48,9 @@ end
 
 function Screen.run(env)
   local component, event = env.component, env.event
-  local W, H = component.gpu.maxResolution()
+  -- The screen's shape, like lumen's "fit"; the largest when that's too small for the editor.
+  local W, H = Gui.size(component, "fit")
+  if W < MIN_W or H < MIN_H then W, H = component.gpu.maxResolution() end
   local ui = Gui.new(component.gpu, W, H)
   local LIST_TOP, SEP = 4, H - 11
   local LIST_BOTTOM, DETAIL, MSG, FOOT = SEP - 1, H - 10, H - 1, H

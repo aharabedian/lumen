@@ -260,12 +260,30 @@ M.onPull = nil
 check(runOk and M.find("MOX 12 ", 3) and not M.find(" more", 3) and not M.find("Reactor e0", 3),
   "12 reactors on switches: all twelve on screen, each reactor on its switch's row" .. (runOk and "" or (": " .. tostring(runErr))))
 
+-- The same on a wall 7 blocks wide, 3 tall: 160 x 33, and still all twelve.
+M.aspect = { 7, 3 }
+M.onPull = function(n) if n > 3 then return { "interrupted" } end end
+runOk, runErr = pcall(H.run, "lumen.lua", CFG2)
+M.onPull = nil
+check(runOk and M.resolution[2] == 33 and M.find("MOX 12 ", 3) and not M.find(" more", 3) and M.oob == 0,
+  "a 7 x 3 screen: 160 x 33, all twelve still on screen" .. (runOk and "" or (": " .. tostring(runErr))))
+H.screen("lumen-wall")
+
+---------------------------------------------------------------- the editor on the 7 x 3 wall
+found = {}
+steps = {}
+seen(function() found.wall = M.resolution[1] == 160 and M.resolution[2] == 33 and M.find(" QUIT ", 33) and M.oob == 0 end)
+add({ tap(" QUIT ", 33) })
+ok, err = setup()
+check(ok and found.wall, "the editor on a 7 x 3 screen: 160 x 33, its footer on the last row" .. (ok and "" or (": " .. tostring(err))))
+
 ---------------------------------------------------------------- opened again; tier 2; quitting
 M.resize(80, 25)
 M.oob = 0
 found = {}
 steps = {}
-seen(function() found.clean = not M.find("unsaved changes", 1) and M.find(" SWITCHES 12 ", 2) end)
+-- A 7 x 3 screen on tier 2 fits 80 x 16, too small for the editor: it uses 80 x 25 instead.
+seen(function() found.clean = not M.find("unsaved changes", 1) and M.find(" SWITCHES 12 ", 2) and M.resolution[2] == 25 end)
 add({ tap(" SWITCHES 12 ", 2), tap("MOX 1 ", 4) })
 seen(function()
   found.fits = M.oob == 0 and M.find(" COPY ", 15) and M.find(" DELETE ", 15) and M.find(" OK SIGNAL ", 15)
@@ -294,5 +312,6 @@ _, _, out = setup()
 check(out:find("the editor needs 80x25, so the text setup", 1, true), "a screen too small: the text setup")
 M.resize(160, 50)
 M.modem = nil
+M.aspect = nil
 
 H.done()

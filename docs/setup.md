@@ -4,7 +4,7 @@
 
 | Part | Why |
 |---|---|
-| A computer (tier 2 or better) with a GPU and screen | The display. A **tier 3** screen and GPU give the full layout (160 × 50); tier 2 works (80 × 25). Big multi-block screens look best with a lower `resolution` ([configuration](configuration.md)) |
+| A computer (tier 2 or better) with a GPU and screen | The display. A **tier 3** screen and GPU give the full layout (160 × 50); tier 2 works (80 × 25). LUMEN fits the text to the screen's shape (a 7 × 3 wall gets 160 × 33); a lower `resolution` gives bigger characters ([configuration](configuration.md)) |
 | An **adapter** on each LSC's controller block | How the computer reads the LSC. The adapter touches the controller, and the computer or a cable connects to the adapter |
 | Adapters on generators (optional) | To show them under POWER: a GT generator's controller (an LFTR, turbines...) or an IC2 reactor |
 | A **Redstone I/O** block or redstone card (optional) | For a [switch](#switches) that runs generators by a redstone signal. A GT generator can be switched through its adapter instead |
@@ -61,6 +61,8 @@ LSC or generator reports, to check the adapters are connected.
 ![Three LSCs, with alerts](images/lumen-three.png)
 
 ![A vacuum reactor on a switch](images/lumen-control.png)
+
+![Twelve reactors on a wall of screens 7 wide, 3 tall (160 × 33)](images/lumen-wall.png)
 
 **Tap an LSC** (or All LSCs) for its page: fill history over **80 MIN**, **8 H** or **24 H**, its averages over 5 s,
 5 min and 1 h, time to full or empty, passive loss, maintenance, wireless, capacitors, and **the last 24 hours**

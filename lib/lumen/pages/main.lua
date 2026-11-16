@@ -216,7 +216,7 @@ function main.build(f, m, actions)
   local alertTop = f.h - alertRows
   local rows = buildRows(f, m, 2, width, actions)
   local powerRows = #rows
-  if powerRows > 0 then powerRows = math.min(powerRows + 1, math.max(2, f.h // 3)) end   -- up to a third: 12 reactors at 50 rows
+  if powerRows > 0 then powerRows = math.min(powerRows + 1, math.max(2, f.h // 2)) end   -- up to half: 12 reactors on a 160 x 33 wall
   local powerTop = alertTop - powerRows - (powerRows > 0 and 1 or 0)
   local top, bottom = 3, powerTop - 2       -- panels go in rows top..bottom
 

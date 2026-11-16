@@ -31,8 +31,7 @@ if cfg.lensPort and not component.isAvailable("modem") then
   error(path .. ": lensPort is set, but there's no network card to report to LENS with", 0)
 end
 local gpu = component.gpu
-local w, h = gpu.maxResolution()
-if cfg.resolution then w, h = math.min(w, cfg.resolution[1]), math.min(h, cfg.resolution[2]) end
+local w, h = Gui.size(component, cfg.resolution)
 -- What LUMEN keeps between runs (switches set by hand, history) goes next to the config file.
 local statePath = (path:match("^(.*)/[^/]*$") or ".") .. "/lumen-state.cfg"
 local app = App.new(cfg, { component = component, gpu = gpu, w = w, h = h,

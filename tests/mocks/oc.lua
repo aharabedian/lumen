@@ -9,7 +9,9 @@
   M.modem                the modem component.modem returns (set it to a mocks/net.lua endpoint)
   M.components[addr] = { type, methods = { [name] = doc string }, proxy? }
                          components for component.list / type / methods / doc / proxy
-  M.resize(w, h)         a blank w x h screen (160x50 = tier 3, 80x25 = tier 2)
+  M.resize(w, h)         a blank w x h screen (160x50 = tier 3, 80x25 = tier 2): what gpu.maxResolution says
+  M.aspect = { w, h }    the screen's size in blocks (component.screen.getAspectRatio; nil: it fails)
+  M.resolution           the last gpu.setResolution { w, h }
   M.row(y), M.find(text, minY, minX), M.dump(path)   read what the GPU drew
   M.fgAt(x, y), M.bgAt(x, y)
   M.slept                seconds waited in os.sleep (which OpenOS adds; time passes)
@@ -92,8 +94,8 @@ local event = {
 }
 
 ---------------------------------------------------------------- GPU + screen
-local GW, GH, buf, fgb, bgb
-function M.resize(w, h)
+local GW, GH, MW, MH, buf, fgb, bgb
+local function blank(w, h)
   GW, GH = w, h
   M.W, M.H = GW, GH
   buf, fgb, bgb = {}, {}, {}
@@ -101,6 +103,10 @@ function M.resize(w, h)
     buf[y], fgb[y], bgb[y] = {}, {}, {}
     for x = 1, GW do buf[y][x], fgb[y][x], bgb[y][x] = " ", 0xffffff, 0 end
   end
+end
+function M.resize(w, h)
+  MW, MH = w, h
+  blank(w, h)
 end
 M.resize(160, 50)
 M.oob = 0
@@ -115,8 +121,14 @@ local function cell(x, y, ch)
 end
 local gpu = {
   address = "gp000000", type = "gpu",
-  maxResolution = function() return GW, GH end,
-  setResolution = function() return true end,
+  maxResolution = function() return MW, MH end,
+  -- the screen becomes w x h (blank when the size changes): what's drawn past it is out of bounds
+  setResolution = function(w, h)
+    assert(w >= 1 and h >= 1 and w <= MW and h <= MH, "unsupported resolution")
+    M.resolution = { w, h }
+    if w ~= GW or h ~= GH then blank(w, h) end
+    return true
+  end,
   setForeground = function(c) local o = cf; cf = c; return o end,
   setBackground = function(c) local o = cb; cb = c; return o end,
   set = function(x, y, s)
@@ -134,7 +146,7 @@ local gpu = {
   end,
 }
 
-function M.row(y) return table.concat(buf[y]) end
+function M.row(y) return buf[y] and table.concat(buf[y]) or "" end
 function M.fgAt(x, y) return fgb[y][x] end
 function M.bgAt(x, y) return bgb[y][x] end
 
@@ -217,8 +229,14 @@ local component = {
   end,
 }
 -- component.<type>: the modem is M.modem; anything else is the first M.components entry of that type.
+-- The screen: M.aspect = { blocksW, blocksH } gives it getAspectRatio (nil: the method fails).
+M.screen = { address = "sc000000", type = "screen", getAspectRatio = function()
+  if not M.aspect then error("no aspect ratio in this mock") end
+  return M.aspect[1], M.aspect[2]
+end }
 setmetatable(component, { __index = function(_, k)
   if k == "modem" then return M.modem end
+  if k == "screen" then return M.screen end
   local addr = component.list(k, true)()
   return addr and ocProxy(M.components[addr].proxy) or nil
 end })
