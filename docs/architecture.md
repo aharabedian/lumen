@@ -23,7 +23,7 @@ path, forget cached `lumen.*` modules, and say "run lumen-update" if they're mis
 | `lumen.history` | Fill at three ranges (30 s, 3 min and 9 min samples, 160 each) and hourly totals for 48 hours: EU in and out, peak draw, lowest fill, switches' time on; the net over a window |
 | `lumen.state` | `/home/lumen-state.cfg`: manual modes and history between runs; a real-time clock from a file's modification time |
 | `lumen.alerts` | Alerts from readings, sources and switches (pure), with a hold each; the drain judgement (`alerts.drain`); a tracker that raises after the hold and clears a minute after; health |
-| `lumen.screen` | Draws a model: the header, then `lumen.pages.main` (panels, POWER, alerts) or `lumen.pages.detail` (one LSC). Sends the GPU only changed rows or segments |
+| `lumen.screen` | Draws a model: the header, then `lumen.pages.main` (panels, POWER: a row per switch with its source's state, then unswitched sources; alerts) or `lumen.pages.detail` (one LSC). Sends the GPU only changed rows or segments |
 | `lumen.frame` | A frame of row segments and touch targets, and widgets: buttons, bars, charts; `paint` sends the GPU only what changed (a row with overlapping segments, whole) |
 | `lumen.config` | `/home/lumen.cfg`: defaults and checks |
 | `lumen.telemetry` | Optional reporting to LENS (lens/1) |

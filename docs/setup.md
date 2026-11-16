@@ -50,8 +50,11 @@ LSC or generator reports, to check the adapters are connected.
   - time to full or empty, as the LSC itself works it out
   - the net over 5 minutes and over 1 hour, passive loss, and maintenance status
   - **a fill history chart** in whatever rows are left (one sample every 30 s, the last 80 minutes)
-- **POWER** (with sources or switches): a row per switch (ON, OFF or **FAULT**, why, for how long, and **AUTO / ON /
-  OFF**, with **RESET** for a latched fault) and per source (running or idle, EU/t, a reactor's heat, recipe progress, maintenance problems).
+- **POWER** (with sources or switches): a row per switch: ON, OFF or **FAULT**; what its `source` is doing (running
+  or idle, EU/t, a reactor's heat); why and for how long; **AUTO / ON / OFF**, with **RESET** for a latched fault.
+  When the switch has been off for 10 s and its source still makes power (wired wrong?), the row says **STILL
+  RUNNING** in red. Sources no switch names get a row of their own (running or idle, EU/t, heat, recipe progress,
+  maintenance problems).
 - **Alerts:** bad ones first, each with how long it has lasted. They clear themselves a minute after the
   problem goes away. A new bad alert beeps once.
 

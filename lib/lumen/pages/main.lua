@@ -1,5 +1,6 @@
 --[[ lumen.pages.main: the main page. A panel per LSC (the total first; tap one for its page), the switches and
-  sources ("POWER"), then alerts.
+  sources ("POWER": a row per switch, with what its source is doing, STILL RUNNING in red when it's off and
+  the source still makes power; then a row per source no switch names), then alerts.
 
   main.build(f, m, actions)   f: lumen.frame; m, actions: lumen.screen's model and actions
   main.alerts(f, m, x, y, width, lastRow)   the alerts list (the detail page shows it too)
@@ -84,13 +85,41 @@ local function faultText(f, s)
   return t
 end
 
-local function switchRow(f, s, x, y, width, actions)
+-- What a source is doing, as figures: "300.00k EU/t   heat 4%".
+local function figures(src)
+  local parts = {}
+  if src.output then parts[#parts + 1] = si(src.output) .. " EU/t" end
+  if src.heat then parts[#parts + 1] = ("heat %.0f%%"):format(src.heat * 100) end
+  if src.progress then parts[#parts + 1] = ("recipe %.0f%%"):format(src.progress * 100) end
+  if src.problems and src.problems > 0 then parts[#parts + 1] = src.problems .. " maintenance problems" end
+  return table.concat(parts, "   ")
+end
+
+local SETTLE = 10   -- seconds a switch gets before its source disagreeing with it shows
+
+-- A switch's source, for its row: text, colour, and whether it disagrees with the switch.
+local function sourceState(f, s, src)
+  if not src.ok then return "can't be read: " .. tostring(src.err), C.bad, true end
+  local settled = s.on ~= nil and (not s.since or not f.now or f.now - s.since >= SETTLE)
+  local word, colour, wrong = src.active and "running" or "idle", src.active and C.good or C.dim, false
+  if settled and s.on == false and src.active then word, colour, wrong = "STILL RUNNING", C.bad, true
+  elseif settled and s.on == true and not src.active then word, colour = "not running", C.warn end
+  local fig = figures(src)
+  return word .. (fig ~= "" and "   " .. fig or ""), colour, wrong
+end
+
+-- One row per switch, with what its source (when it names one) is doing: the switch's state, then the source's.
+local function switchRow(f, s, src, x, y, width, actions)
   local faulted = s.fault and (s.fault.on or s.fault.err)
-  local dot = (s.err or faulted) and C.bad or (s.on and C.good) or C.dim
+  local srcText, srcColour, wrong
+  if src then srcText, srcColour, wrong = sourceState(f, s, src) end
+  local running = src and src.ok and src.active or (not src and s.on)
+  local dot = (s.err or faulted or wrong) and C.bad or (running and C.good) or C.dim
   f:text(x, y, "●", dot)
   f:text(x + 2, y, Gui.fit(s.name, 16), C.text)
   local state = s.err and "ERROR" or (s.fault and s.fault.on and "FAULT") or (s.on == nil and "?" or (s.on and "ON" or "OFF"))
-  f:text(x + 19, y, Gui.fit(state, 5), (s.fault and s.fault.on) and C.bad or dot)
+  local stateColour = (s.err or (s.fault and s.fault.on)) and C.bad or (s.on and C.good) or C.dim
+  f:text(x + 19, y, Gui.fit(state, 5), stateColour)
   local bx = x + width - 18
   local resetX = s.fault and s.fault.latched and bx - 8 or nil
   local detail
@@ -105,13 +134,21 @@ local function switchRow(f, s, x, y, width, actions)
     end
     if s.since and f.now then detail = detail .. "   for " .. ago(f.now - s.since) end
   end
-  f:text(x + 25, y, Gui.fit(detail, math.max(0, (resetX or bx) - x - 26)), (s.err or faulted) and C.bad or C.dim)
+  local dx, room = x + 26, math.max(0, (resetX or bx) - x - 27)
+  if srcText then
+    -- the source first; the switch's detail after it when there's room (tier 2 has room for the source only)
+    local sw = room >= 64 and 32 or room
+    f:text(dx, y, Gui.fit(srcText, sw), srcColour)
+    dx, room = dx + sw + 1, room - sw - 1
+  end
+  if room > 0 then f:text(dx, y, Gui.fit(detail, room), (s.err or faulted) and C.bad or C.dim) end
   if resetX then f:button(resetX, y, "RESET", function() actions.reset(s.name) end) end
   bx = f:button(bx, y, "AUTO", function() actions.mode(s.name, "auto") end, s.mode == "auto")
   bx = f:button(bx - 1, y, "ON", function() actions.mode(s.name, "on") end, s.mode == "on")
   f:button(bx - 1, y, "OFF", function() actions.mode(s.name, "off") end, s.mode == "off")
 end
 
+-- A source no switch names: its own row.
 local function sourceRow(f, src, x, y, width)
   local dot = not src.ok and C.bad or (src.active and C.good) or C.dim
   f:text(x, y, "●", dot)
@@ -121,19 +158,26 @@ local function sourceRow(f, src, x, y, width)
     return
   end
   f:text(x + 19, y, Gui.fit(src.active and "running" or "idle", 9), dot)
-  local parts = {}
-  if src.output then parts[#parts + 1] = si(src.output) .. " EU/t" end
-  if src.heat then parts[#parts + 1] = ("heat %.0f%%"):format(src.heat * 100) end
-  if src.progress then parts[#parts + 1] = ("recipe %.0f%%"):format(src.progress * 100) end
-  if src.problems and src.problems > 0 then parts[#parts + 1] = src.problems .. " maintenance problems" end
-  f:text(x + 29, y, Gui.fit(table.concat(parts, "   "), width - 29), C.dim)
+  f:text(x + 29, y, Gui.fit(figures(src), width - 29), C.dim)
 end
 
-local function powerSection(f, m, x, y, width, actions, last)
+-- POWER's rows: each switch (with its source), then the sources no switch names.
+local function buildRows(f, m, x, width, actions)
+  local byName, used, rows = {}, {}, {}
+  for _, src in ipairs(m.sources or {}) do byName[src.name] = byName[src.name] or src end
+  for _, s in ipairs(m.switches or {}) do
+    local src = s.source and byName[s.source]
+    if src then used[src] = true end
+    rows[#rows + 1] = function(ry) switchRow(f, s, src, x, ry, width, actions) end
+  end
+  for _, src in ipairs(m.sources or {}) do
+    if not used[src] then rows[#rows + 1] = function(ry) sourceRow(f, src, x, ry, width) end end
+  end
+  return rows
+end
+
+local function powerSection(f, rows, x, y, last)
   f:text(x, y, "POWER", C.accent)
-  local rows = {}
-  for _, s in ipairs(m.switches or {}) do rows[#rows + 1] = function(ry) switchRow(f, s, x, ry, width, actions) end end
-  for _, src in ipairs(m.sources or {}) do rows[#rows + 1] = function(ry) sourceRow(f, src, x, ry, width) end end
   local room = last - y
   for i, draw in ipairs(rows) do
     if i == room and #rows > room then
@@ -170,7 +214,8 @@ function main.build(f, m, actions)
   local nAlerts = #(m.alerts or {})
   local alertRows = math.max(2, math.min(nAlerts + 1, math.max(2, f.h // 4)))
   local alertTop = f.h - alertRows
-  local powerRows = #(m.switches or {}) + #(m.sources or {})
+  local rows = buildRows(f, m, 2, width, actions)
+  local powerRows = #rows
   if powerRows > 0 then powerRows = math.min(powerRows + 1, math.max(2, f.h // 4)) end
   local powerTop = alertTop - powerRows - (powerRows > 0 and 1 or 0)
   local top, bottom = 3, powerTop - 2       -- panels go in rows top..bottom
@@ -199,7 +244,7 @@ function main.build(f, m, actions)
     end
   end
 
-  if powerRows > 0 then powerSection(f, m, 2, powerTop, width, actions, powerTop + powerRows - 1) end
+  if powerRows > 0 then powerSection(f, rows, 2, powerTop, powerTop + powerRows - 1) end
   main.alerts(f, m, 2, alertTop, width, f.h - 1)
 end
 

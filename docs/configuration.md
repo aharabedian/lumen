@@ -69,7 +69,7 @@ control = {
 | `strength` | `15` | Redstone: the signal's strength when on |
 | `onBelow`, `offAbove` | | On below this % full, off above this % |
 | `lsc` | all LSCs | Follow one LSC, by name |
-| `source` | | The source it switches: warns when on and it isn't running, or off and it is |
+| `source` | | The source it switches: shown on the switch's row (not a row of its own); warns when on and it isn't running, or off and it is |
 | `minSwitch` | `60` | Seconds to wait after switching before switching again |
 | `fault` | | Optional: a redstone signal from what it runs that means trouble ([setup](setup.md#fault-inputs)), below |
 

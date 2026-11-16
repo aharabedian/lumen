@@ -23,6 +23,11 @@ versions follow [Semantic Versioning](https://semver.org/).
 - **`lumen-discover --release`**: `setActive(false)` on each IC2 reactor. A computer's `setActive(true)` holds a
   reactor on whatever its redstone says, even after the computer is gone; this hands it back to its redstone.
 
+### Changed
+- **POWER shows a switch and its source as one row**: the switch's state, then what the reactor or generator is
+  doing (running, EU/t, heat). Off for 10 s while the source still makes power shows **STILL RUNNING** in red.
+  Twelve reactors on switches take twelve rows instead of twenty-four.
+
 ### Fixed
 - IC2 reactors showed "can't be read: no answer", and GT generators never showed as running. LUMEN skipped any
   method that wasn't a Lua function, and in game a component's methods never are. The LSC's stored-EU fallback
