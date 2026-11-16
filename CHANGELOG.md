@@ -26,7 +26,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 ### Changed
 - **POWER shows a switch and its source as one row**: the switch's state, then what the reactor or generator is
   doing (running, EU/t, heat). Off for 10 s while the source still makes power shows **STILL RUNNING** in red.
-  Twelve reactors on switches take twelve rows instead of twenty-four.
+  Twelve reactors on switches take twelve rows instead of twenty-four, and POWER may take up to a third of the
+  screen (was a quarter), so all twelve fit on a 160x50 screen.
 
 ### Fixed
 - IC2 reactors showed "can't be read: no answer", and GT generators never showed as running. LUMEN skipped any

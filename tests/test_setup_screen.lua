@@ -242,6 +242,24 @@ M.onPull = nil
 check(runOk and M.find("MOX 1 ", 3) and M.find("auto: on below 30%, off above 90%", 3),
   "lumen runs it" .. (runOk and "" or (": " .. tostring(runErr))))
 
+-- Finished: every switch with its reactor. All twelve fit on the screen, one row each.
+local whole = config.load(CFG)
+for k, s in ipairs(whole.control) do
+  if not s.source then
+    s.source = "Reactor " .. ("e%03d"):format(k)
+    for _, src in ipairs(whole.sources) do if src.address:sub(1, 4) == ("e%03d"):format(k) then src.name = s.source end end
+  end
+end
+local CFG2 = home .. "/lumen-all.cfg"
+local fh = assert(io.open(CFG2, "w"))
+fh:write(require("lumen.setup.files").finish(whole))
+fh:close()
+M.onPull = function(n) if n > 3 then return { "interrupted" } end end
+runOk, runErr = pcall(H.run, "lumen.lua", CFG2)
+M.onPull = nil
+check(runOk and M.find("MOX 12 ", 3) and not M.find(" more", 3) and not M.find("Reactor e0", 3),
+  "12 reactors on switches: all twelve on screen, each reactor on its switch's row" .. (runOk and "" or (": " .. tostring(runErr))))
+
 ---------------------------------------------------------------- opened again; tier 2; quitting
 M.resize(80, 25)
 M.oob = 0
