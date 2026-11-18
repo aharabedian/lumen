@@ -10,6 +10,7 @@
 | A **Redstone I/O** block or redstone card (optional) | For a [switch](#switches) that runs generators by a redstone signal. A GT generator can be switched through its adapter instead |
 | An Internet Card | To install and update. You can take it out afterwards |
 | A network card (optional) | Only to report to [LENS](https://github.com/aharabedian/lens) |
+| An adapter on an **ME interface** (optional) | To count [supplies](#supplies): fuel, coolant, spent rods (or on an ME controller) |
 | A Computronics **Radar** (optional) | To wake [big mode](#big-mode) as you walk up: the block, touching the computer or cabled to it |
 
 One computer shows every LSC it can reach. LSCs too far apart for cable can each have their own LUMEN
@@ -91,6 +92,23 @@ needed changes; it doesn't swap running reactors to even out their run time.
 It's kept across restarts. After an update, it fills in from then on.
 
 ![The last 24 hours' energy](images/lumen-energy.png)
+
+### Supplies
+
+**SUPPLIES**, under POWER, counts what generators burn and make in the ME system, every 30 seconds: each one's stock
+and how long it lasts at the last hour's rate (or "+4/h" when it grows). Tap it for their page: per hour over the
+last hour and the day, how long each lasts, its last 24 hours as a line, its alerts, and what it feeds.
+
+- **Alerts:** under `below` (bad at none: an empty fuel line), over `above` (spent rods piling up), or lasting under
+  `hours`. Big mode shows a supply in trouble too.
+- **Adding one:** `lumen-setup`, SUPPLIES, **+ NEW**, then type its name as its tooltip shows it: an item's whole
+  name, exactly ("Quad Fuel Rod (Uranium)"), or part of a fluid's. LUMEN asks the ME system for it, so even a big
+  one never has to fit in this computer. Tap the one to watch, then set its alerts and what it feeds. **COUNT** says
+  how many there are now.
+
+LUMEN only counts; it never moves anything.
+
+![Supplies](images/lumen-supplies.png)
 
 ### Timeline
 

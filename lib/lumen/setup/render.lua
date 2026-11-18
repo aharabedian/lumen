@@ -10,7 +10,8 @@ local VERSION = require("lumen.version")
 local R = {}
 
 local ORDER = { "name", "address", "redstone", "machine", "side", "invert", "strength", "group", "always", "onBelow", "offAbove",
-  "run", "lsc", "source", "heatTrip", "heatRise", "alwaysOn", "minSwitch", "fault", "latch", "stop", "rotate", "steps" }
+  "run", "lsc", "source", "heatTrip", "heatRise", "alwaysOn", "minSwitch", "fault", "latch", "stop", "rotate", "steps",
+  "item", "fluid", "below", "above", "hours", "feeds" }
 local RANK = {}
 for i, k in ipairs(ORDER) do RANK[k] = i end
 
@@ -76,7 +77,7 @@ function R.cfg(c)
     "-- hand are kept when it rewrites this file (comments aren't). Every option: docs/configuration.md",
     "return {",
   }
-  local known = { names = true, sources = true, groups = true, control = true, missing = true }
+  local known = { names = true, sources = true, groups = true, control = true, supplies = true, missing = true }
   for _, s in ipairs(SETTINGS) do
     known[s[1]] = true
     local v = c[s[1]]
@@ -95,6 +96,7 @@ function R.cfg(c)
     L[#L + 1] = "  },"
   end
   list(L, "sources", c.sources or {}, "power sources to show (GT generators; IC2 reactors show by themselves)")
+  list(L, "supplies", c.supplies or {}, "supplies counted in the ME system: alert below / above a count, or under `hours` left")
   list(L, "groups", c.groups or {}, "groups: switches that run together; each step runs `run` more below onBelow %")
   list(L, "control", c.control or {}, "switches: generators on below onBelow %, off above offAbove % (or by their group)")
 

@@ -9,6 +9,7 @@
 local Gui = require("lumen.gui")
 local frame = require("lumen.frame")
 local mainPage = require("lumen.pages.main")
+local supplies = require("lumen.supplies")
 
 local glance = {}
 
@@ -77,6 +78,10 @@ local function lines(m, r)
   if trips > 0 then parts[#parts + 1] = trips .. " TRIP" end
   if errs > 0 then parts[#parts + 1] = errs .. " ERROR" end
   if #parts > 0 then out[#out + 1] = { table.concat(parts, " · "), C.bad } end
+  for _, s in ipairs(m.supplies or {}) do
+    local level, text = supplies.status(s)
+    if level then out[#out + 1] = { s.name .. ": " .. text, level == "bad" and C.bad or C.warn } end
+  end
   return out
 end
 

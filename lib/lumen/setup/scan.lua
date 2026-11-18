@@ -6,7 +6,8 @@
              gts = { { address, name }... },             GT machines that aren't LSCs, name = getName()
              redstone = { address... },                  Redstone I/O blocks and cards
              modem = bool,                               a network card, for LENS
-             presence = { "radar" } | {} }               a Computronics radar, to wake big mode
+             presence = { "radar" } | {},                a Computronics radar, to wake big mode
+             me = bool }                                 an ME interface or controller, for supplies
     every list sorted by address
   scan.inputs(component, address) -> { { side = "south", level = 15 }... } | nil, err
     the redstone signals coming into a block now (sides with none left out): 6 calls, one a tick
@@ -15,6 +16,7 @@
 local power   = require("lumen.power")
 local sources = require("lumen.sources")
 local presence = require("lumen.presence")
+local supplies = require("lumen.supplies")
 
 local scan = {}
 
@@ -22,7 +24,7 @@ scan.SIDES = { "bottom", "top", "north", "south", "west", "east" }   -- OpenComp
 
 function scan.snapshot(component)
   local snap = { lscs = {}, reactors = {}, gts = {}, redstone = {}, modem = component.isAvailable("modem") and true or false,
-    presence = presence.scan(component) }
+    presence = presence.scan(component), me = supplies.find(component) ~= nil }
   for _, r in ipairs(power.new(component, { names = {} }):read()) do
     snap.lscs[#snap.lscs + 1] = { address = r.address, ok = r.ok, fill = r.fill }
   end

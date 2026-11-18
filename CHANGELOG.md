@@ -6,6 +6,13 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Supplies** (`supplies`): fuel, coolant, spent rods and the like, counted in an AE2 ME system every 30 s through an
+  adapter on an ME interface (one lookup each). A SUPPLIES section on the main page (stock, how long it lasts at the
+  last hour's rate), a page (per hour, the day's line, alerts, what it feeds), alerts (under `below`, bad at none;
+  over `above`; under `hours` left), big mode, and LENS (`lumen_supply_amount`, `lumen_supply_seconds_left`).
+  `lumen-setup`'s SUPPLIES tab finds one by the name its tooltip shows.
+
+### Added
 - **Timeline** (TIMELINE on the POWER line): 8 H, 24 H or 7 D of a bar per switch coloured by its state (on, by
   hand, off, fault, trip, error; blank while LUMEN wasn't running), the fill and how many ran, and the events:
   switches going on and off and why, faults, trips, RESETs and modes set by hand with the player who tapped,
