@@ -14,7 +14,7 @@
   app:onModem(port, data)            a packet: answers the LENS hub's hello
   app:stop()                         saves state, closes LENS, restores the screen
   app.running, app.readings, app.total, app.sources, app.control (lumen.control), app.history (lumen.history),
-  app.alerts (lumen.alerts tracker), app.screen, app.lens, app.page ("main" | "lsc" | "group"), app.lsc,
+  app.alerts (lumen.alerts tracker), app.screen, app.lens, app.page ("main" | "lsc" | "group" | "energy"), app.lsc,
   app.range, app.group (a group's name), app.view ("tiles" | "rows" | nil: tiles when they all fit; kept),
   app.big (big mode: lumen.pages.glance at a coarser resolution, app.bigScreen), app.presence (lumen.presence)
   app.glanceSize(w, h, scale) -> w, h   big mode's resolution: w / scale (40 at least), the same shape
@@ -29,6 +29,7 @@
 ]]
 
 local alerts = require("lumen.alerts")
+local energy = require("lumen.energy")
 local control = require("lumen.control")
 local history = require("lumen.history")
 local power = require("lumen.power")
@@ -80,6 +81,7 @@ function app.new(cfg, env)
     open = function(address) self.page, self.lsc, self.range = "lsc", address, 1 end,
     back = function() self.page = "main" end,
     group = function(name) self.page, self.group = "group", name end,
+    energy = function() self.page = "energy" end,
     view = function(v) self.view, self.dirty = v, true end,
     glance = function() self:goBig(self.now or 0, true) end,
     wake = function() self:wake(self.now or 0) end,
@@ -125,6 +127,10 @@ function App:model(now)
     switches = self.control.list, sources = self.sources, groups = self.control.groups, hours = self.onTime,
     view = self.view, glance = self.big,
   }
+  if self.page == "energy" then
+    m.time = self:time()
+    m.energy = energy.day(self.history, m.time, m)
+  end
   if self.page == "group" then
     for _, g in ipairs(self.control.groups) do if g.name == self.group then m.group = g end end
     if not m.group then m.page = "main" end
@@ -215,6 +221,12 @@ function App:tick(now)
   end
   h:keep(keep)
   for _, s in ipairs(self.control.list) do h:switch(s.name, s.on, time, dt) end
+  local names = {}
+  for _, src in ipairs(self.sources) do
+    names[src.name] = true
+    h:source(src.name, src, time, dt)
+  end
+  h:keepSources(names)
 
   local ctx = { now = now, switches = self.control.list, sources = self.sources,
     rate = function(address, seconds) return h:rate(address, seconds, time) end }

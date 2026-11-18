@@ -164,6 +164,7 @@ Sources have a `source` label, switches a `switch` label and groups a `group` la
 | `lumen_source_up` | | 1 when the source can be read, else 0 |
 | `lumen_source_active` | | 1 while it runs |
 | `lumen_source_output_eut` | EU/t | What it makes (when it says) |
+| `lumen_source_24h_eu` | EU | What it made over the last 24 hours |
 | `lumen_reactor_heat_ratio` | 0..1 | A reactor's heat over its max |
 | `lumen_switch_on` | | 1 while the switch has its generators on |
 | `lumen_switch_auto` | | 1 on AUTO, 0 when set by hand |

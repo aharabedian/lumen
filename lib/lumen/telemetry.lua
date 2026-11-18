@@ -46,6 +46,7 @@ function Telemetry.open(cfg, modem, log)
   t.srcOn    = m:gauge("lumen_source_active", "1 while the source runs, else 0")
   t.srcOut   = m:gauge("lumen_source_output_eut", "What the source makes", "EU/t")
   t.heat     = m:gauge("lumen_reactor_heat_ratio", "A reactor's heat over its max heat", "0..1")
+  t.src24h   = m:gauge("lumen_source_24h_eu", "EU the source made over the last 24 hours", "EU")
   t.swOn     = m:gauge("lumen_switch_on", "1 while the switch has its generators on, else 0")
   t.swAuto   = m:gauge("lumen_switch_auto", "1 while the switch follows the fill, 0 when set by hand")
   t.swFault  = m:gauge("lumen_switch_fault", "1 while the switch's fault input signals trouble (or is latched), else 0")
@@ -99,6 +100,7 @@ function Telemetry:report(readings, alerts, extra)
       self.srcOut:set(src.output, l)
       self.heat:set(src.heat, l)
     end
+    if extra.history and extra.time then self.src24h:set(extra.history:sourceDay(src.name, extra.time).eu, l) end
   end
   for _, s in ipairs(extra.switches or {}) do
     local l = { switch = s.name }
