@@ -69,13 +69,36 @@ check(near(hr.avg, 70000, 0.05) and hr.making == 43600 + 1320 + 32768, "the aver
 -- Kept across a restart, and history from 0.2.1 (no in and out) still loads.
 local h2 = history.new(require("serialization").unserialize(require("serialization").serialize(h:save())))
 check(near(h2:sourceDay("N-1", now).eu, d1.eu) and #h2:sourceChart("N-1") > 0 and #h2:flows("") > 0, "saved and loaded")
-local old = h:save()
+-- As 0.2.1 saved it: no in and out, and the sample being averaged (cur) without them either.
+local old = require("serialization").unserialize(require("serialization").serialize(h:save()))
 old.src = nil
 for key in pairs(old.hours) do if key:find("^source:") then old.hours[key] = nil end end
-for _, l in pairs(old.lsc) do l[3].inE, l[3].outE = nil, nil end
+for _, l in pairs(old.lsc) do
+  for _, rg in ipairs(l) do
+    rg.inE, rg.outE = nil, nil
+    if rg.cur then rg.cur.inE, rg.cur.outE = nil, nil end
+  end
+end
+local crashed = require("serialization").unserialize(require("serialization").serialize(old))
 local h3 = history.new(old)
 local f3 = h3:flows("")
 check(#f3 > 0 and f3[1].inE == false, "0.2.1's history: in and out unknown for what was kept, nothing breaks")
+local okAdd, errAdd = pcall(function()
+  for t = now + 600, now + 1800, 5 do h3:add("", total, t, 5) end   -- restarted after its sample ended, as in game
+end)
+check(okAdd, "the next readings finish 0.2.1's half-done sample (seen in game: it crashed)" .. (okAdd and "" or (": " .. tostring(errAdd))))
+local rg3 = h3.lsc[""][3]
+check(#rg3.inE == #rg3.i and rg3.inE[#rg3.inE] and rg3.inE[#rg3.inE] > 0, "in and out line up with the samples, the new ones known")
+-- A file saved after that crash: one more sample than in and out (the push stopped half way).
+for _, l in pairs(crashed.lsc) do
+  local rg = l[3]
+  rg.inE, rg.outE = {}, {}
+  for j = 1, #rg.i - 1 do rg.inE[j], rg.outE[j] = false, false end
+  rg.cur = nil
+end
+local h4 = history.new(crashed)
+local rg4 = h4.lsc[""][3]
+check(#rg4.inE == #rg4.i and #rg4.outE == #rg4.i, "a file saved after that crash: in and out lined up again")
 check(#energy.day(h3, now, m).bands == 3, "and the page builds without sources' history, claiming no \"other\"")
 
 ---------------------------------------------------------------- the page, in lumen
