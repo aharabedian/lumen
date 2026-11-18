@@ -5,31 +5,56 @@
   stop }): a redstone signal from whatever it runs that means trouble. LUMEN only reads it.
 
   control.SIDES                       side names -> OpenComputers side numbers (bottom 0 ... east 5)
-  control.new(component, cfg, modes?, faults?) -> c
-    modes: { [switch name] = "on" | "off" } kept from the last run (lumen.state); the rest start in "auto"
-    faults: { [switch name] = true } latched faults kept from the last run
-  c:update(readings, total, now)      decide, switch, read back; fills c.list
+  control.new(component, cfg, kept?) -> c
+    kept: what c:modes(), c:faults(), c:trips() and c:groupSteps() returned last run (lumen.state), as
+    { modes = { [switch] = "on" | "off" }, faults = { [switch] = true }, trips = { [switch] = why | { rearm } },
+      groups = { [group] = { step active... } } }; switches not in modes start in "auto"
+  c:update(readings, total, now, extra?)   decide, switch, read back; fills c.list and c.groups
+    extra = { sources = lumen.sources list (for heat trips), onTime = { [switch] = seconds on, last 24 h }
+              (a group starts the least first) }
   c.list = { {
-      name, mode = "auto" | "on" | "off", on = bool | nil (nil: can't tell), since (now when it last switched,
-      or when LUMEN started), onBelow, offAbove, lsc (name followed; nil: all LSCs), source (name),
-      fill (0..1 it follows, nil when unreadable), why (a few words: "below 30%", "holding: LSC unreadable"),
-      err (text: can't be found or switched),
+      name, index (in cfg.control), mode = "auto" | "on" | "off", on = bool | nil (nil: can't tell), since (now
+      when it last switched, or when LUMEN started), onBelow, offAbove (nil for a group's member without its
+      own), lsc (name followed; nil: all LSCs; a member follows its group's), source (name), group (name),
+      fill (0..1 it follows, nil when unreadable), why (a few words: "below 30%", "holding: LSC unreadable",
+      "Nuclear: 10 needed"), err (text: can't be found or switched),
       fault = nil (no fault input) | { on (a fault now: the signal, or latched), signal (bool; nil: unreadable),
-        latched, since (when it began), err (text: the input can't be read) } }... }   in cfg.control order
+        latched, since (when it began), err (text: the input can't be read) },
+      trip = nil (no heatTrip or heatRise) | { on, why ("heat 91%, trips at 90%"), since, heat (% now, nil when
+        its source can't be read), rearm (% it trips at after a RESET above heatTrip, until it cools) } }... }
+    in cfg.control order
+  c.groups = { { name, lsc, rotate, fill, need (how many it wants on; nil before the first decision), running
+      (members on in auto), why, steps = { { onBelow, offAbove, run, active }... }, members = { switch... },
+      order = { switch... } (who starts next first: least run time, or cfg.control order without rotate),
+      hours = { [switch] = seconds on in 24 h } }... }   in cfg.groups order
   c:setMode(name, mode, now)          from the screen: "auto", "on" or "off"; manual modes switch at once
   c:modes() -> { [name] = mode }      the manual ones, to keep across restarts
-  c:reset(name, now)                  RESET on the screen: clears a latched fault once its signal is gone, and
-                                      switches at once
+  c:reset(name, now)                  RESET on the screen: clears a latched fault once its signal is gone, and a
+                                      heat trip; switches at once
   c:faults() -> { [name] = true }     the latched faults, to keep across restarts
+  c:trips() -> { [name] = why | { rearm = % } }   heat trips and raised marks after a RESET, to keep across
+                                      restarts
+  c:groupSteps() -> { [group] = { bool... } }   which steps are on, to keep across restarts
 
   A fault (with stop, the default) switches off at once, whatever the mode, and holds it off while it lasts;
   once it clears, auto waits minSwitch as after any switch. latch: a fault stays until RESET. A fault input
   that can't be read is an error on the fault, and switches nothing.
 
+  Heat trip (heatTrip: % of the source's max heat; heatRise: % of max heat a minute, over at least 30 s): switches
+  off at once whatever the mode and stays tripped until RESET. A RESET while the heat is still at or over
+  heatTrip lets it run (a reactor only cools while it runs) and trips 5 points higher until it falls below
+  heatTrip. A source that can't be read trips nothing.
+
   Auto: on below onBelow %, off above offAbove %, unchanged in between (so it doesn't flicker). It waits
   minSwitch seconds (default 60) after switching before switching again, and holds while it can't read the fill. On start it
   reads the output as it is, so a restart never flips anything. Each update reads the output back and sets it
   again if it differs (a redstone output resets when its chunk reloads).
+
+  A group's members in auto switch by the group instead: each step is on below its onBelow and off above its
+  offAbove, and the group wants the sum of its steps' run. A step in its band keeps what it was (after a restart
+  without that, what's running says). Too few on: the members off with the least run time start (cfg.control
+  order without rotate); too many: the most run time stops. A member set ON or OFF by hand, faulted, tripped or
+  broken is left out, and the next takes its place; each still waits its own minSwitch.
 ]]
 
 local power = require("lumen.power")
@@ -44,14 +69,40 @@ C.__index = C
 
 local function reason(err) return (tostring(err):gsub("^[^:]*:%d+: ", "")) end
 
-function control.new(component, cfg, modes, faults)
-  local self = setmetatable({ component = component, cfg = cfg, list = {}, at = {} }, C)
-  for _, sw in ipairs(cfg.control or {}) do
-    local mode = modes and modes[sw.name]
-    local latched = sw.fault and sw.fault.latch and faults and faults[sw.name] == true or false
-    self.list[#self.list + 1] = { name = sw.name, mode = (mode == "on" or mode == "off") and mode or "auto",
-      onBelow = sw.onBelow, offAbove = sw.offAbove, lsc = sw.lsc, source = sw.source, cfg = sw,
+function control.new(component, cfg, kept)
+  kept = type(kept) == "table" and kept or {}
+  local modes, faults = kept.modes or {}, kept.faults or {}
+  local trips, steps = kept.trips or {}, kept.groups or {}
+  local self = setmetatable({ component = component, cfg = cfg, list = {}, groups = {}, at = {} }, C)
+  local byName = {}
+  for _, g in ipairs(cfg.groups or {}) do
+    local saved = type(steps[g.name]) == "table" and steps[g.name] or {}
+    local G = { name = g.name, cfg = g, lsc = g.lsc, rotate = g.rotate ~= false, steps = {}, members = {}, order = {},
+      hours = {} }
+    for k, st in ipairs(g.steps) do
+      local was = saved[k]
+      G.steps[k] = { onBelow = st.onBelow, offAbove = st.offAbove, run = st.run,
+        active = (was == true or was == false) and was or nil }
+    end
+    self.groups[#self.groups + 1] = G
+    byName[g.name] = G
+  end
+  for i, sw in ipairs(cfg.control or {}) do
+    local mode = modes[sw.name]
+    local latched = sw.fault and sw.fault.latch and faults[sw.name] == true or false
+    local G = sw.group and byName[sw.group]
+    local s = { name = sw.name, index = i, mode = (mode == "on" or mode == "off") and mode or "auto",
+      onBelow = sw.onBelow, offAbove = sw.offAbove, lsc = G and G.lsc or sw.lsc, source = sw.source,
+      group = G and G.name or nil, cfg = sw,
       fault = sw.fault and { on = latched, latched = latched } or nil }
+    if sw.heatTrip or sw.heatRise then
+      local kept1 = trips[sw.name]
+      local why = type(kept1) == "string" and kept1 or nil
+      local rearm = type(kept1) == "table" and tonumber(kept1.rearm) or nil
+      s.trip = { on = why ~= nil, why = why, rearm = rearm, samples = {} }
+    end
+    self.list[#self.list + 1] = s
+    if G then G.members[#G.members + 1] = s end
   end
   return self
 end
@@ -112,6 +163,30 @@ function C:checkFault(s, now)
   f.on = on
 end
 
+local RISE_WINDOW, RISE_MIN, REARM = 60, 30, 5
+
+local function checkTrip(s, src, now)
+  local t = s.trip
+  if not t then return end
+  t.heat = (src and src.ok and src.heat) and src.heat * 100 or nil
+  if t.on then t.since = t.since or now; return end   -- latched until RESET (one kept from the last run: from now)
+  if not t.heat then return end
+  local pct = t.heat
+  local sw, samples = s.cfg, t.samples
+  samples[#samples + 1] = { now, pct }
+  while #samples > 2 and now - samples[2][1] >= RISE_WINDOW do table.remove(samples, 1) end
+  if t.rearm and sw.heatTrip and pct < sw.heatTrip then t.rearm = nil end   -- cooled: back to the usual mark
+  local mark = t.rearm or sw.heatTrip
+  local why
+  if mark and pct >= mark then
+    why = ("heat %.0f%%, trips at %g%%"):format(pct, mark)
+  elseif sw.heatRise and now - samples[1][1] >= RISE_MIN then
+    local rate = (pct - samples[1][2]) / (now - samples[1][1]) * 60
+    if rate >= sw.heatRise then why = ("heat rising %.1f%% a minute, trips at %g%%"):format(rate, sw.heatRise) end
+  end
+  if why then t.on, t.why, t.since = true, why, now end
+end
+
 function C:writeOutput(s, on)
   local sw = s.cfg
   if sw.redstone then
@@ -134,9 +209,18 @@ local function followed(s, readings, total)
   return total or (#readings == 1 and readings[1]) or nil
 end
 
+local function stopped(s)
+  return (s.trip and s.trip.on) or (s.fault and s.fault.on and s.cfg.fault.stop)
+end
+
 local function decide(s, now, force)
+  if s.trip and s.trip.on then return false, "heat trip" end
   if s.fault and s.fault.on and s.cfg.fault.stop then return false, "fault: stopped" end
   if s.mode ~= "auto" then return s.mode == "on", "set " .. s.mode:upper() .. " on the screen" end
+  if s.group then
+    if s.groupWant ~= nil then return s.groupWant, s.groupWhy end
+    return s.on, s.groupWhy or ("group " .. s.group)
+  end
   if s.fill == nil then return s.on, "holding: can't read the LSC" end
   local pct = s.fill * 100
   local want, why = s.on, ("between %g%% and %g%%"):format(s.onBelow, s.offAbove)
@@ -165,13 +249,94 @@ function C:apply(s, now, force)
   s.on = want
 end
 
-function C:update(readings, total, now)
+local function ready(s, now) return now - (s.switched or -math.huge) >= (s.cfg.minSwitch or 60) end
+
+-- Which members a group starts or stops this time: sets each member's groupWant (nil: leave it) and groupWhy.
+local function decideGroup(g, readings, total, now, onTime)
+  local r = followed(g, readings, total)
+  g.fill = (r and r.ok and r.fill) or nil
+  local hours = {}
+  for _, s in ipairs(g.members) do
+    s.groupWant, s.groupWhy = nil, nil
+    hours[s.name] = onTime and onTime[s.name] or 0
+  end
+  g.hours = hours
+  local function first(a, b)          -- who starts first
+    if g.rotate and hours[a.name] ~= hours[b.name] then return hours[a.name] < hours[b.name] end
+    return a.index < b.index
+  end
+  local order = { table.unpack(g.members) }
+  table.sort(order, first)
+  g.order = order
+  local pool, running = {}, 0
+  for _, s in ipairs(order) do
+    if s.mode == "auto" and s.on ~= nil and not s.err and not stopped(s) then
+      pool[#pool + 1] = s
+      if s.on then running = running + 1 end
+    end
+  end
+  g.running = running
+  if g.fill == nil then
+    g.why = "holding: can't read the LSC"
+    for _, s in ipairs(g.members) do s.groupWhy = g.why end
+    return
+  end
+  local pct, need, cum = g.fill * 100, 0, 0
+  for _, st in ipairs(g.steps) do
+    cum = cum + st.run
+    if pct < st.onBelow then st.active = true
+    elseif pct > st.offAbove then st.active = false
+    elseif st.active == nil then st.active = running >= cum end   -- after a restart: what's running says
+    if st.active then need = need + st.run end
+  end
+  g.need = need
+  g.why = ("%d needed"):format(need)
+  for _, s in ipairs(pool) do
+    s.groupWhy = ("%s: %d needed%s"):format(g.name, need, s.on and "" or ", standing by")
+  end
+  if running < need then
+    local k = need - running
+    for _, s in ipairs(pool) do
+      if k == 0 then break end
+      if not s.on then
+        if ready(s, now) then s.groupWant, s.groupWhy = true, ("%s: %d needed, one more"):format(g.name, need)
+        else s.groupWhy = "waiting to switch again" end
+        k = k - 1
+      end
+    end
+  elseif running > need then
+    local k = running - need
+    for i = #pool, 1, -1 do
+      local s = pool[i]
+      if k == 0 then break end
+      if s.on and ready(s, now) then
+        s.groupWant, s.groupWhy = false, ("%s: %d needed, one fewer"):format(g.name, need)
+        k = k - 1
+      end
+    end
+  end
+end
+
+function C:update(readings, total, now, extra)
+  extra = extra or {}
+  local srcs = {}
+  for _, src in ipairs(extra.sources or {}) do srcs[src.name] = src end
   for _, s in ipairs(self.list) do
     local r = followed(s, readings, total)
     s.fill = (r and r.ok and r.fill) or nil
     self:checkFault(s, now)
-    self:apply(s, now)
+    checkTrip(s, s.source and srcs[s.source], now)
   end
+  if self.looked then    -- the first look only reads the outputs as they are
+    for _, g in ipairs(self.groups) do decideGroup(g, readings, total, now, extra.onTime) end
+  end
+  for _, s in ipairs(self.list) do self:apply(s, now) end
+  for _, g in ipairs(self.groups) do        -- what's running now, after this update's switching
+    local n = 0
+    for _, s in ipairs(g.members) do if s.on and s.mode == "auto" and not stopped(s) then n = n + 1 end end
+    g.running = n
+  end
+  self.looked = true
   return self.list
 end
 
@@ -186,12 +351,39 @@ end
 
 function C:reset(name, now)
   for _, s in ipairs(self.list) do
-    if s.name == name and s.fault and s.fault.latched then
-      s.fault.latched = false
-      self:checkFault(s, now)
-      self:apply(s, now, true)
+    if s.name == name then
+      local t, any = s.trip, false
+      if s.fault and s.fault.latched then
+        s.fault.latched, any = false, true
+        self:checkFault(s, now)
+      end
+      if t and t.on then
+        t.on, t.why, t.since, t.samples, any = false, nil, nil, {}, true
+        local mark = s.cfg.heatTrip
+        if mark and t.heat and t.heat >= mark then t.rearm = math.min(100, t.heat + REARM) end
+      end
+      if any then self:apply(s, now, true) end
     end
   end
+end
+
+function C:trips()
+  local out = {}
+  for _, s in ipairs(self.list) do
+    local t = s.trip
+    if t and t.on then out[s.name] = t.why elseif t and t.rearm then out[s.name] = { rearm = t.rearm } end
+  end
+  return out
+end
+
+function C:groupSteps()
+  local out = {}
+  for _, g in ipairs(self.groups) do
+    local t = {}
+    for k, st in ipairs(g.steps) do t[k] = st.active == true end
+    out[g.name] = t
+  end
+  return out
 end
 
 function C:faults()

@@ -11,7 +11,8 @@
   app:onModem(port, data)            a packet: answers the LENS hub's hello
   app:stop()                         saves state, closes LENS, restores the screen
   app.running, app.readings, app.total, app.sources, app.control (lumen.control), app.history (lumen.history),
-  app.alerts (lumen.alerts tracker), app.screen, app.lens, app.page ("main" | "lsc"), app.lsc, app.range
+  app.alerts (lumen.alerts tracker), app.screen, app.lens, app.page ("main" | "lsc" | "group"), app.lsc,
+  app.range, app.group (a group's name), app.view ("tiles" | "rows" | nil: tiles when they all fit; kept)
   app:model(now) -> what the screen draws
 
   Beeps once when a bad alert is raised or a warning becomes bad (cfg.beep). A LENS failure never stops the
@@ -38,7 +39,7 @@ App.__index = App
 
 function app.new(cfg, env)
   local self = setmetatable({ cfg = cfg, env = env, running = true, readings = {}, sources = {},
-    page = "main", range = 1 }, App)
+    page = "main", range = 1, onTime = {} }, App)
   local saved = {}
   if env.statePath then
     self.clock = state.clock(env.filesystem, env.computer, env.statePath .. ".clock")
@@ -49,7 +50,8 @@ function app.new(cfg, env)
   self.history = history.new(fresh and saved.history or nil)
   self.power = power.new(env.component, cfg)
   self.sourceReader = sources.new(env.component, cfg)
-  self.control = control.new(env.component, cfg, saved.modes, saved.faults)
+  self.control = control.new(env.component, cfg, saved)
+  self.view = (saved.view == "tiles" or saved.view == "rows") and saved.view or nil
   self.alerts = alerts.tracker()
   self.screen = screen.new(env.gpu, env.w, env.h)
   self.lens = Telemetry.open(cfg, env.modem)
@@ -57,6 +59,8 @@ function app.new(cfg, env)
     quit = function() self.running = false end,
     open = function(address) self.page, self.lsc, self.range = "lsc", address, 1 end,
     back = function() self.page = "main" end,
+    group = function(name) self.page, self.group = "group", name end,
+    view = function(v) self.view, self.dirty = v, true end,
     range = function(k) self.range = k end,
     mode = function(name, mode)
       self.control:setMode(name, mode, self.now or 0)
@@ -96,8 +100,13 @@ function App:model(now)
     now = now, version = VERSION, health = alerts.health(list), missingConfig = self.cfg.missing,
     lens = self.lens and ("port " .. self.lens.port .. " as " .. self.cfg.lensNode) or nil,
     lscs = self.readings, total = self.total, alerts = list, page = self.page,
-    switches = self.control.list, sources = self.sources,
+    switches = self.control.list, sources = self.sources, groups = self.control.groups, hours = self.onTime,
+    view = self.view,
   }
+  if self.page == "group" then
+    for _, g in ipairs(self.control.groups) do if g.name == self.group then m.group = g end end
+    if not m.group then m.page = "main" end
+  end
   if self.page == "lsc" then
     local time = self:time()
     local names = {}
@@ -119,8 +128,9 @@ end
 function App:save()
   self.dirty = false
   if not self.env.statePath then return end
-  pcall(state.save, self.env.statePath, { saved = self:time(), modes = self.control:modes(), faults = self.control:faults(),
-    history = self.history:save() })
+  local c = self.control
+  pcall(state.save, self.env.statePath, { saved = self:time(), modes = c:modes(), faults = c:faults(), trips = c:trips(),
+    groups = c:groupSteps(), view = self.view, history = self.history:save() })
 end
 
 function App:tick(now)
@@ -130,9 +140,13 @@ function App:tick(now)
   self.readings = self.power:read()
   self.total = power.total(self.readings)
   self.sources = self.sourceReader:read()
-  self.control:update(self.readings, self.total, now)
+  self.onTime = self.history:day("", time).on
+  self.control:update(self.readings, self.total, now, { sources = self.sources, onTime = self.onTime })
   local latched = {}
   for name in pairs(self.control:faults()) do latched[#latched + 1] = name end
+  for name, why in pairs(self.control:trips()) do
+    latched[#latched + 1] = name .. ": " .. (type(why) == "table" and ("rearm " .. tostring(why.rearm)) or why)
+  end
   table.sort(latched)
   latched = table.concat(latched, "\n")
   if latched ~= (self.latched or "") then self.latched, self.dirty = latched, true end -- kept at once, not in 5 min
@@ -162,7 +176,7 @@ function App:tick(now)
     if bad then self.env.beep() end
   end
   self:lensCall(Telemetry.report, self.readings, self.alerts.list, { total = self.total, sources = self.sources,
-    switches = self.control.list, history = h, time = time })
+    switches = self.control.list, groups = self.control.groups, history = h, time = time })
   self.nextSave = self.nextSave or now + SAVE_EVERY
   if self.dirty or now >= self.nextSave then
     self:save()

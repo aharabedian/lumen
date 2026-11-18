@@ -168,8 +168,8 @@ add({ key(0, 14), key(0, 14), key(0, 14) })
 add(typed("95"))
 seen(function() found.bad = M.find("on below must be a whole percent under off above (90%)", 49) end)
 add({ tap(" top ", DET) })                         -- the switch's side (the first "top" in the panel)
-add({ tap(" ON ", DET + 5), tap(" LATCH ", DET) })  -- a fault input, latched
-add({ tap("none ▸", DET) })                        -- its source: the pick view
+add({ tap(" ON ", DET + 6), tap(" LATCH ", DET) })  -- a fault input, latched
+add({ tap("none ▸", DET + 4) })                    -- its source: the pick view
 seen(function() found.pick = M.find("The source MOX 1 switches", 1) and M.find("Reactor e002", 3) end)
 add({ tap("MOX 1", 3) })
 seen(function()
@@ -181,7 +181,7 @@ seen(function()
   found.copyMsg = M.find("Copied: pick its redstone block and source", 49)
 end)
 -- MOX 3: its source, and READ: a lever on its block's west side.
-add({ tap("MOX 3 ", 4), tap("none ▸", DET), tap("Reactor e003", 3) })
+add({ tap("MOX 3 ", 4), tap("none ▸", DET + 4), tap("Reactor e003", 3) })
 seen(function() rs[3].inp[4] = 15 end)
 add({ tap(" READ ", DET) })
 seen(function() found.read = M.find("c0030000: signal in west 15", DET) end)

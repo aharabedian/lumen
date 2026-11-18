@@ -184,10 +184,14 @@ local function controlStep(c, env, readings, gts)
   local out = {}
   if #(c.control or {}) > 0 then
     for _, s in ipairs(c.control) do
-      print(("  %s: %s, on below %g%%, off above %g%%%s"):format(s.name,
+      print(("  %s: %s, %s%s%s"):format(s.name,
         s.redstone and ("redstone " .. s.redstone .. " " .. tostring(s.side)) or ("GT machine " .. tostring(s.machine)),
-        s.onBelow, s.offAbove, s.fault and (", fault from redstone " .. tostring(s.fault.redstone) .. " "
-          .. tostring(s.fault.side)) or ""))
+        s.group and ("in group " .. s.group) or ("on below %g%%, off above %g%%"):format(s.onBelow, s.offAbove),
+        s.heatTrip and (", trips at %g%% heat"):format(s.heatTrip) or "",
+        s.fault and (", fault from redstone " .. tostring(s.fault.redstone) .. " " .. tostring(s.fault.side)) or ""))
+    end
+    for _, g in ipairs(c.groups or {}) do
+      print(("  group %s: kept as it is (change groups and heat trips on the setup screen)"):format(g.name))
     end
     if input.yes("  keep these?", true) then out = c.control end
   end

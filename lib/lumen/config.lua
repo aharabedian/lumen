@@ -24,6 +24,8 @@ config.DEFAULTS = {
   beep = true,             -- beep when a bad alert appears
   sources = {},            -- { { address = "a1b2", name = "LFTR", alwaysOn = true }... }: GT generators to show
   control = {},            -- switches: { { name, redstone | machine, side, onBelow, offAbove, ... }... }
+  groups = {},             -- { { name, steps = { { onBelow, offAbove, run }... }, rotate, lsc }... }: switches
+                           -- that run together, as many as the fill needs (a switch joins with group = name)
   lensPort = nil,          -- report to LENS on this port (4243 is LENS's); nil: don't
   lensNode = "lumen",      -- this computer's name in LENS
   lensToken = nil,         -- LENS's token, if the hub has one
@@ -71,7 +73,8 @@ function config.check(c)
     or number(c, "heatWarn", 0, 100, "a percent, 0-100")
     or number(c, "heatBad", 0, 100, "a percent, 0-100")
     or config.checkSources(c.sources)
-    or config.checkControl(c.control)
+    or config.checkGroups(c.groups)
+    or config.checkControl(c.control, c.groups)
   if err then return nil, err end
   if c.heatWarn > c.heatBad then return nil, "heatWarn must not be above heatBad" end
   if c.lensPort ~= nil and (math.type(c.lensPort) ~= "integer" or c.lensPort < 1 or c.lensPort > 65535) then
@@ -101,8 +104,37 @@ end
 local SIDES = { bottom = true, down = true, top = true, up = true, north = true, back = true, south = true,
   front = true, west = true, right = true, east = true, left = true }
 
-function config.checkControl(list)
+local function percent(v, lo) return type(v) == "number" and v == v and v >= (lo or 0) and v <= 100 end
+
+function config.checkGroups(list)
+  if type(list) ~= "table" then return 'groups must be a list: { { name = "Nuclear", steps = { ... } } }' end
+  local names = {}
+  for i, g in ipairs(list) do
+    if type(g) ~= "table" or not named(g.name) then return ("groups[%d] needs a name"):format(i) end
+    local where = ("group %q"):format(g.name)
+    if names[g.name] then return where .. ": two groups have that name" end
+    names[g.name] = true
+    if type(g.steps) ~= "table" or #g.steps == 0 then
+      return where .. " needs steps: { { onBelow = 90, offAbove = 95, run = 4 }... }"
+    end
+    for k, st in ipairs(g.steps) do
+      local at = ("%s step %d"):format(where, k)
+      if type(st) ~= "table" or not percent(st.onBelow) or not percent(st.offAbove) then
+        return at .. ": onBelow and offAbove must be percents, 0-100"
+      end
+      if st.onBelow >= st.offAbove then return at .. ": onBelow must be below offAbove" end
+      if math.type(st.run) ~= "integer" or st.run < 1 then return at .. ": run must be a whole number, 1 or more" end
+    end
+    if g.rotate == nil then g.rotate = true end
+    if type(g.rotate) ~= "boolean" then return where .. ": rotate must be true or false" end
+    if g.lsc ~= nil and not named(g.lsc) then return where .. ": lsc must be an LSC's name (nil: all of them)" end
+  end
+end
+
+function config.checkControl(list, groups)
   if type(list) ~= "table" then return "control must be a list of switches: { { name = ..., redstone = ... } }" end
+  local groupNamed = {}
+  for _, g in ipairs(groups or {}) do groupNamed[g.name] = true end
   local names = {}
   for i, s in ipairs(list) do
     local where = ("control[%d]"):format(i)
@@ -123,10 +155,18 @@ function config.checkControl(list)
       end
       if s.invert ~= nil and type(s.invert) ~= "boolean" then return where .. ": invert must be true or false" end
     end
-    for _, k in ipairs({ "onBelow", "offAbove" }) do
-      if type(s[k]) ~= "number" or s[k] < 0 or s[k] > 100 then return where .. ": " .. k .. " must be a percent, 0-100" end
+    if s.group ~= nil and not groupNamed[s.group] then return where .. (": group %q isn't in groups"):format(tostring(s.group)) end
+    -- A group's members switch by its steps: their own marks are optional (kept for when they leave it).
+    if not (s.group and s.onBelow == nil and s.offAbove == nil) then
+      for _, k in ipairs({ "onBelow", "offAbove" }) do
+        if not percent(s[k]) then return where .. ": " .. k .. " must be a percent, 0-100" end
+      end
+      if s.onBelow >= s.offAbove then return where .. ": onBelow must be below offAbove" end
     end
-    if s.onBelow >= s.offAbove then return where .. ": onBelow must be below offAbove" end
+    if s.heatTrip ~= nil and not percent(s.heatTrip, 1) then return where .. ": heatTrip must be a percent, 1-100, or nil" end
+    if s.heatRise ~= nil and not (type(s.heatRise) == "number" and s.heatRise > 0) then
+      return where .. ": heatRise must be a % of max heat a minute, above 0, or nil"
+    end
     if s.minSwitch ~= nil and (type(s.minSwitch) ~= "number" or s.minSwitch < 0) then
       return where .. ": minSwitch must be a number of seconds"
     end

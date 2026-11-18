@@ -22,7 +22,8 @@ local VERSION   = require("lumen.version")
 local input     = require("lumen.setup.input")
 
 local home = (os.getenv("LUMEN_PREFIX") or "") .. "/home"
-local env = { component = component, event = require("event"), cfgPath = home .. "/lumen.cfg", shrcPath = home .. "/.shrc" }
+local env = { component = component, event = require("event"), computer = require("computer"), cfgPath = home .. "/lumen.cfg",
+  shrcPath = home .. "/.shrc" }
 
 local function main(...)
   if ({ ... })[1] ~= "--text" then

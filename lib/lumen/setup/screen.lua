@@ -1,16 +1,19 @@
 --[[ lumen.setup.screen: lumen-setup's touchscreen editor (a GPU and screen of 80x25 or more).
 
   Screen.available(component) -> true | nil, why
-  Screen.run(env) -> "text" | nil      env = { component, event, cfgPath, shrcPath }; "text" when the user asked
-                                       for the text setup instead
+  Screen.run(env) -> "text" | nil      env = { component, event, computer?, cfgPath, shrcPath }; "text" when the
+                                       user asked for the text setup instead
 
   Tabs: LSCS (a name for each), SOURCES (reactors and GT machines: show it, its name, always on), SWITCHES (a
-  row per switch; tap one to edit it: name, marks, redstone block and side or GT machine, the LSC it follows,
-  its source, its fault input; + NEW, COPY for the next one, DELETE), GENERAL (alerts, LENS, start on boot).
-  Long choices (a component, an LSC, a source) open a list to tap. READ shows which sides of a switch's
-  redstone blocks have a signal coming in, to tell blocks apart. SAVE shows the changes and warnings, then
-  writes lumen.cfg (keeping lumen.cfg.bak) and .shrc. Keys: typing goes to the field being edited (Enter done,
-  Esc cancels); otherwise Up/Down pick a row and Left/Right switch tabs. The edits live in lumen.setup.editor.
+  row per switch; tap one to edit it: name, group or marks, redstone block and side or GT machine, the LSC it
+  follows, its source, its heat trip, its fault input; ▲ ▼ to move it, + NEW, COPY for the next one, DELETE;
+  PAIR), GROUPS (name, rotate, the LSC it follows, members, steps; + NEW, ADD EVERY SWITCH, DELETE), GENERAL
+  (alerts, LENS, start on boot). Long choices (a component, an LSC, a source, a group) open a list to tap. READ
+  shows which sides of a switch's redstone blocks have a signal coming in, to tell blocks apart. PAIR finds
+  which reactor each switch runs by running them one at a time (lumen.setup.pair), after explaining and a
+  START; APPLY makes them the switches' sources. SAVE shows the changes and warnings, then writes lumen.cfg
+  (keeping lumen.cfg.bak) and .shrc. Keys: typing goes to the field being edited (Enter done, Esc cancels);
+  otherwise Up/Down pick a row and Left/Right switch tabs. The edits live in lumen.setup.editor.
 ]]
 
 local unicode = require("unicode")
@@ -20,6 +23,7 @@ local VERSION = require("lumen.version")
 local Editor  = require("lumen.setup.editor")
 local files   = require("lumen.setup.files")
 local scan    = require("lumen.setup.scan")
+local Pair    = require("lumen.setup.pair")
 
 local Screen = {}
 
@@ -27,7 +31,7 @@ local MIN_W, MIN_H = 80, 25
 local KEY = { enter = 28, back = 14, esc = 1, up = 200, down = 208, left = 203, right = 205 }
 local TABS = {
   { id = "lscs", title = "LSCS" }, { id = "sources", title = "SOURCES" },
-  { id = "switches", title = "SWITCHES" }, { id = "general", title = "GENERAL" },
+  { id = "switches", title = "SWITCHES" }, { id = "groups", title = "GROUPS" }, { id = "general", title = "GENERAL" },
 }
 local SIDES = scan.SIDES
 local C = Gui.C
@@ -48,6 +52,7 @@ end
 
 function Screen.run(env)
   local component, event = env.component, env.event
+  local uptime = env.computer and env.computer.uptime or os.clock
   -- The screen's shape, like lumen's "fit"; the largest when that's too small for the editor.
   local W, H = Gui.size(component, "fit")
   if W < MIN_W or H < MIN_H then W, H = component.gpu.maxResolution() end
@@ -63,6 +68,7 @@ function Screen.run(env)
     pick = nil,             -- { what, i, title, scroll } on the pick view
     inputs = {},            -- redstone address -> what READ found
     msg = nil, msgOk = true, confirm = nil, result = nil,
+    pair = nil,             -- lumen.setup.pair while PAIR runs (or has run)
   }
   local painted, hits = {}, {}
 
@@ -92,6 +98,10 @@ function Screen.run(env)
     elseif S.tab == "switches" then
       local out = {}
       for i, sw in ipairs(ed.c.control) do out[#out + 1] = { key = sw.name, i = i, sw = sw } end
+      return out
+    elseif S.tab == "groups" then
+      local out = {}
+      for gi, g in ipairs(ed.c.groups) do out[#out + 1] = { key = g.name, gi = gi, g = g } end
       return out
     end
     return {}
@@ -189,6 +199,7 @@ function Screen.run(env)
     lscs = { { 4, "ADDRESS" }, { 14, "NAME" }, { 40, "NOW" } },
     sources = { { 4, "ADDRESS" }, { 14, "WHAT" }, { 42, "NAME" }, { 64, "" } },
     switches = { { 4, "NAME" }, { 23, "RUN BY" }, { 47, "ON / OFF" }, { 56, "SOURCE" }, { 71, "FAULT" } },
+    groups = { { 4, "NAME" }, { 23, "MEMBERS" }, { 33, "STEPS" } },
   }
 
   local function drawRow(row, y, bg)
@@ -209,6 +220,13 @@ function Screen.run(env)
       f:text(14, y, fit(r.label, 27), r.found and C.text or C.bad, bg)
       f:text(42, y, fit(r.entry and r.entry.name or "not shown", 21), r.entry and C.text or C.dim, bg)
       f:text(64, y, fit(r.entry and r.entry.alwaysOn and "always on" or "", W - 64), C.info, bg)
+    elseif S.tab == "groups" then
+      local n = #ed.members(row.gi)
+      local m, mc = mark(n > 0, true)
+      f:text(2, y, m, mc, bg)
+      f:text(4, y, fit(row.g.name, 18), C.text, bg)
+      f:text(23, y, tostring(n), n > 0 and C.text or C.warn, bg)
+      f:text(33, y, fit(ed.describeGroup(row.g), W - 33), C.dim, bg)
     else
       local sw = row.sw
       local m, mc = mark(swOk(sw), true)
@@ -216,7 +234,7 @@ function Screen.run(env)
       f:text(4, y, fit(sw.name, 18), C.text, bg)
       local by = sw.redstone and ("redstone %s %s"):format(sw.redstone, Editor.sideName(sw.side)) or ("GT " .. tostring(sw.machine))
       f:text(23, y, fit(by, 23), C.text, bg)
-      f:text(47, y, fit(("%g-%g%%"):format(sw.onBelow, sw.offAbove), 8), C.text, bg)
+      f:text(47, y, fit(sw.group or ("%g-%g%%"):format(sw.onBelow or 0, sw.offAbove or 0), 8), sw.group and C.info or C.text, bg)
       f:text(56, y, fit(sw.source or "none", 14), sw.source and C.text or C.dim, bg)
       local ft, fc = faultShort(sw)
       f:text(71, y, fit(ft, W - 71), fc, bg)
@@ -227,6 +245,7 @@ function Screen.run(env)
     lscs = "No LSC found: put an adapter against an LSC's controller (touching this computer, or cabled to it).",
     sources = "No reactor or GT machine found: put an adapter against a generator's controller or a reactor.",
     switches = "No switches yet: + NEW makes one. A switch turns generators on below one fill and off above another.",
+    groups = "No groups yet: + NEW makes one. A group runs as many of its switches as the fill needs.",
   }
 
   local function drawList()
@@ -315,11 +334,25 @@ function Screen.run(env)
     end
   end
 
+  local function inputsSummary(sw)
+    local parts = {}
+    for _, a in ipairs({ sw.redstone, sw.fault and sw.fault.redstone }) do
+      local t = a and inputsText(a)
+      if t and (#parts == 0 or a ~= sw.redstone) then parts[#parts + 1] = t end
+    end
+    return #parts > 0 and table.concat(parts, "   ") or "nothing read"
+  end
+
   local function switchDetail(row)
     local i, sw, y = row.i, row.sw, DETAIL
     local set = function(k, v) report(ed.setSwitch(i, k, v)) end
     say(3, y, "Switch " .. sw.name, C.accent, P)
-    local bx = W - 26
+    local bx = W - 35
+    bx = button(bx, y, "▲", function() local j = ed.moveSwitch(i, -1); if j then selectSwitch(j) end end)
+    bx = button(bx, y, "▼", function() local j = ed.moveSwitch(i, 1); if j then selectSwitch(j) end end)
+    if sw.redstone or sw.fault then
+      bx = button(bx, y, "READ", function() readInputs(sw); flash(inputsSummary(sw)) end)
+    end
     bx = button(bx, y, "COPY", function()
       local at, why = ed.copySwitch(i)
       if at then selectSwitch(at); flash("Copied: pick its redstone block and source if they're not right.") else flash(why, false) end
@@ -331,21 +364,29 @@ function Screen.run(env)
 
     y = y + 1
     f:text(3, y, "Name", C.dim, P)
-    local x = field(12, y, 18, "swname", sw.name, function(text)
+    local x = field(12, y, 16, "swname", sw.name, function(text)
       local ok, why = ed.setSwitch(i, "name", text)
       if ok then S.sel.switches = text else return why end
     end)
-    f:text(x, y, "on below", C.dim, P)
-    x = field(x + 9, y, 4, "onbelow", sw.onBelow, function(text)
-      local ok, why = ed.setSwitch(i, "onBelow", whole(text, 0, 100) or -1)
-      if not ok then return why end
+    f:text(x, y, "Group", C.dim, P)
+    x = button(x + 6, y, (sw.group or "none") .. " ▸", function()
+      openPick("group", i, "The group " .. sw.name .. " runs in (its steps say when)")
     end)
-    f:text(x - 1, y, "%  off above", C.dim, P)
-    x = field(x + 12, y, 4, "offabove", sw.offAbove, function(text)
-      local ok, why = ed.setSwitch(i, "offAbove", whole(text, 0, 100) or -1)
-      if not ok then return why end
-    end)
-    say(x - 1, y, "% full", C.dim, P)
+    if sw.group then
+      say(x, y, "its group's steps say when it runs", C.dim, P)
+    else
+      f:text(x, y, "on below", C.dim, P)
+      x = field(x + 9, y, 3, "onbelow", sw.onBelow, function(text)
+        local ok, why = ed.setSwitch(i, "onBelow", whole(text, 0, 100) or -1)
+        if not ok then return why end
+      end)
+      f:text(x - 1, y, "% off above", C.dim, P)
+      x = field(x + 11, y, 3, "offabove", sw.offAbove, function(text)
+        local ok, why = ed.setSwitch(i, "offAbove", whole(text, 0, 100) or -1)
+        if not ok then return why end
+      end)
+      say(x - 1, y, "%", C.dim, P)
+    end
 
     y = y + 1
     f:text(3, y, "Run by", C.dim, P)
@@ -365,7 +406,7 @@ function Screen.run(env)
     y = y + 1
     if sw.redstone then
       f:text(3, y, "Side", C.dim, P)
-      x = sideButtons(12, y, sw.side, function(s) set("side", s) end)
+      x = sideButtons(12, y, sw.side, function(s2) set("side", s2) end)
       toggle(x, y, "SIGNAL = STOP", sw.invert == true, function(v) set("invert", v) end)
     else
       say(12, y, "its work switch, the same as a soft mallet on its controller", C.dim, P)
@@ -373,11 +414,37 @@ function Screen.run(env)
 
     y = y + 1
     f:text(3, y, "Follows", C.dim, P)
-    x = button(12, y, (sw.lsc or "all LSCs") .. " ▸", function() openPick("lsc", i, "The LSC " .. sw.name .. " follows") end)
+    if sw.group then say(12, y, "its group's LSC", C.dim, P); x = 28
+    else
+      x = button(12, y, (sw.lsc or "all LSCs") .. " ▸", function() openPick("lsc", i, "The LSC " .. sw.name .. " follows") end)
+    end
     f:text(math.max(x, 36), y, "Source", C.dim, P)
     button(math.max(x, 36) + 7, y, (sw.source or "none") .. " ▸", function()
       openPick("source", i, "The source " .. sw.name .. " switches (LUMEN warns when it doesn't follow)")
     end)
+
+    y = y + 1
+    f:text(3, y, "Heat trip", C.dim, P)
+    local tripOn = sw.heatTrip ~= nil or sw.heatRise ~= nil
+    x = toggle(13, y, "OFF", not tripOn, function() set("heatTrip", nil); set("heatRise", nil) end)
+    x = toggle(x, y, "ON", tripOn, function() if not tripOn then set("heatTrip", 90) end end)
+    if tripOn then
+      f:text(x, y, "at", C.dim, P)
+      x = field(x + 3, y, 3, "heattrip", sw.heatTrip, function(text)
+        if text == "" then set("heatTrip", nil); return end
+        local ok, why = ed.setSwitch(i, "heatTrip", whole(text, 1, 100) or -1)
+        if not ok then return why end
+      end)
+      f:text(x - 1, y, "% heat, or rising", C.dim, P)
+      x = field(x + 17, y, 3, "heatrise", sw.heatRise, function(text)
+        if text == "" then set("heatRise", nil); return end
+        local ok, why = ed.setSwitch(i, "heatRise", whole(text, 1, 100) or -1)
+        if not ok then return why end
+      end)
+      say(x - 1, y, "% a minute: off until RESET", C.dim, P)
+    else
+      say(x, y, "switch off and latch when its reactor runs too hot (set per reactor)", C.dim, P)
+    end
 
     y = y + 1
     local fl = sw.fault
@@ -392,7 +459,7 @@ function Screen.run(env)
       say(x, y, "a redstone line that means trouble", C.dim, P)
       y = y + 1
       f:text(5, y, "side", C.dim, P)
-      sideButtons(12, y, fl.side, function(s) report(ed.setFault(i, "side", s)) end)
+      sideButtons(12, y, fl.side, function(s2) report(ed.setFault(i, "side", s2)) end)
       y = y + 1
       f:text(5, y, "it's", C.dim, P)
       x = toggle(12, y, "OK SIGNAL", fl.invert == true, function(v) ed.setFault(i, "invert", v) end)
@@ -402,19 +469,70 @@ function Screen.run(env)
         .. (fl.stop ~= false and "; switches off" or "; alert only"), C.dim, P)
     else
       say(x, y, "optional: a redstone line from what it runs that means trouble (SFM's error output...)", C.dim, P)
-      y = y + 2
     end
+  end
+
+  local function groupDetail(row)
+    local gi, g, y = row.gi, row.g, DETAIL
+    say(3, y, "Group " .. g.name, C.accent, P)
+    local bx = W - 29
+    bx = button(bx, y, "ADD EVERY SWITCH", function()
+      local n = ed.joinAll(gi)
+      flash(n == 0 and "Every switch is in a group already." or (n .. " switches joined " .. g.name .. "."))
+    end)
+    button(bx, y, "DELETE", function()
+      if S.confirm == "gdelete" then ed.deleteGroup(gi); S.sel.groups = nil; S.confirm = nil
+      else S.confirm = "gdelete"; flash("Tap DELETE again to delete " .. g.name .. " (its switches stay, with marks)", false) end
+    end, false, S.confirm == "gdelete" and C.bad or nil)
 
     y = y + 1
-    if sw.redstone or fl then
-      x = button(3, y, "READ", function() readInputs(sw) end)
-      local parts = {}
-      for _, a in ipairs({ sw.redstone, fl and fl.redstone }) do
-        local t = a and inputsText(a)
-        if t and (#parts == 0 or a ~= sw.redstone) then parts[#parts + 1] = t end
-      end
-      say(x, y, #parts > 0 and table.concat(parts, "   ") or "flip a lever by a block (or trip its fault) and READ to find it",
-        C.info, P)
+    f:text(3, y, "Name", C.dim, P)
+    local x = field(12, y, 16, "gname", g.name, function(text)
+      local ok, why = ed.setGroup(gi, "name", text)
+      if ok then S.sel.groups = text else return why end
+    end)
+    f:text(x, y, "Rotate", C.dim, P)
+    x = toggle(x + 7, y, "ON", g.rotate ~= false, function() ed.setGroup(gi, "rotate", true) end)
+    x = toggle(x, y, "OFF", g.rotate == false, function() ed.setGroup(gi, "rotate", false) end)
+    f:text(x, y, "Follows", C.dim, P)
+    button(x + 8, y, (g.lsc or "all LSCs") .. " ▸", function() openPick("groupLsc", gi, "The LSC " .. g.name .. " follows") end)
+
+    y = y + 1
+    local mem, names = ed.members(gi), {}
+    for _, i in ipairs(mem) do names[#names + 1] = ed.c.control[i].name end
+    f:text(3, y, "Members", C.dim, P)
+    say(12, y, #mem == 0 and "none yet: set a switch's Group, or ADD EVERY SWITCH" or (#mem .. ": " .. table.concat(names, ", ")),
+      #mem == 0 and C.warn or C.text, P)
+
+    local cum = 0
+    for k, st in ipairs(g.steps) do
+      if k > 4 then say(3, y + 1, ("+%d more steps in lumen.cfg"):format(#g.steps - 4), C.dim, P); break end
+      y = y + 1
+      cum = cum + st.run
+      f:text(3, y, "Step " .. k, C.dim, P)
+      f:text(11, y, "below", C.dim, P)
+      x = field(17, y, 3, "sb" .. k, st.onBelow, function(text)
+        local ok, why = ed.setStep(gi, k, "onBelow", whole(text, 0, 100) or -1)
+        if not ok then return why end
+      end)
+      f:text(x - 1, y, "% run", C.dim, P)
+      x = field(x + 5, y, 3, "sr" .. k, st.run, function(text)
+        local ok, why = ed.setStep(gi, k, "run", whole(text, 1, 999) or -1)
+        if not ok then return why end
+      end)
+      f:text(x - 1, y, " more, off above", C.dim, P)
+      x = field(x + 16, y, 3, "so" .. k, st.offAbove, function(text)
+        local ok, why = ed.setStep(gi, k, "offAbove", whole(text, 0, 100) or -1)
+        if not ok then return why end
+      end)
+      f:text(x - 1, y, "%", C.dim, P)
+      x = button(x + 1, y, "REMOVE", function() report(ed.dropStep(gi, k)) end)
+      say(x, y, ("= %d on"):format(cum), C.dim, P)
+    end
+    y = y + 1
+    if #g.steps < 4 then
+      local x2 = button(3, y, "+ STEP", function() ed.addStep(gi) end)
+      say(x2, y, "each step runs more below its mark, and lets them go above its off mark", C.dim, P)
     end
   end
 
@@ -513,7 +631,8 @@ function Screen.run(env)
       local label = t.title
       if t.id == "lscs" then label = label .. " " .. #ed.lscRows()
       elseif t.id == "sources" then label = label .. " " .. #ed.c.sources
-      elseif t.id == "switches" then label = label .. " " .. #ed.c.control end
+      elseif t.id == "switches" then label = label .. " " .. #ed.c.control
+      elseif t.id == "groups" then label = label .. " " .. #ed.c.groups end
       x = button(x, 2, label, function() S.tab = t.id end, S.tab == t.id)
     end
     if S.tab == "general" then drawGeneral() else drawList() end
@@ -524,6 +643,7 @@ function Screen.run(env)
     elseif not row then say(3, DETAIL, "Tap a row to change it.", C.dim, P)
     elseif S.tab == "lscs" then lscDetail(row)
     elseif S.tab == "sources" then sourceDetail(row)
+    elseif S.tab == "groups" then groupDetail(row)
     else switchDetail(row) end
     if S.msg then say(3, MSG, S.msg, S.msgOk and C.good or C.bad) end
     x = button(2, FOOT, "SAVE", function() S.view = "review" end, dirty())
@@ -543,9 +663,15 @@ function Screen.run(env)
       S.running = false
     end, false, S.confirm == "quit" and C.bad or nil)
     if S.tab == "switches" then
-      button(x + 2, FOOT, "+ NEW", function()
+      x = button(x + 2, FOOT, "+ NEW", function()
         local at, why = ed.addSwitch()
         if at then selectSwitch(at) else flash(why, false) end
+      end)
+      button(x, FOOT, "PAIR", function() S.pair = nil; S.view = "pair" end)
+    elseif S.tab == "groups" then
+      button(x + 2, FOOT, "+ NEW", function()
+        local gi = ed.addGroup()
+        S.sel.groups = ed.c.groups[gi].name
       end)
     end
     local list = S.tab ~= "general" and rows() or {}
@@ -564,7 +690,9 @@ function Screen.run(env)
     local list = ed.choices(p.what, p.i)
     local sw = ed.c.control[p.i] or {}
     local current = p.what == "redstone" and sw.redstone or p.what == "machine" and sw.machine or p.what == "lsc" and sw.lsc
-      or p.what == "source" and sw.source or (sw.fault and sw.fault.redstone)
+      or p.what == "source" and sw.source or p.what == "group" and sw.group
+      or p.what == "groupLsc" and (ed.c.groups[p.i] or {}).lsc
+      or p.what == "faultRedstone" and (sw.fault and sw.fault.redstone)
     local top, height = 3, H - 4
     for k = 1, height do
       local ch, y = list[p.scroll + k], top + k - 1
@@ -578,6 +706,7 @@ function Screen.run(env)
         f:hit(1, y, W, y, function()
           local ok, why
           if p.what == "faultRedstone" then ok, why = ed.setFault(p.i, "redstone", ch.value)
+          elseif p.what == "groupLsc" then ok, why = ed.setGroup(p.i, "lsc", ch.value)
           else ok, why = ed.setSwitch(p.i, p.what, ch.value) end
           report(ok, why)
           S.view = "edit"
@@ -633,6 +762,97 @@ function Screen.run(env)
     button(x, FOOT, "BACK", function() S.view = "edit" end)
   end
 
+  local PAIR_TEXT = {
+    "Which reactor does each switch run? LUMEN can find out by trying them, one at a time:",
+    "",
+    "  1. Every redstone switch's output goes off, so its reactor stops.",
+    "  2. Each switch turns on alone, for up to 15 s, while LUMEN watches every reactor.",
+    "  3. The reactor that starts making power is that switch's source; the switch goes off again.",
+    "  4. At the end, every output goes back to how it was.",
+    "",
+    "Each reactor runs for a few seconds: have its coolant (and SFM) ready. A switch whose fault input",
+    "says trouble is skipped. STOP puts every output back at once. APPLY sets the sources in this",
+    "editor; nothing is written until SAVE.",
+  }
+
+  local function pairStatus(r, p)
+    local sw = ed.c.control[r.i] or {}
+    if r.status == "testing" then
+      return ("▶ on now, watching every reactor… %ds"):format(math.floor(uptime() - (p.at or uptime()))), C.info
+    end
+    if r.status == "paired" then
+      local name = ed.sourceName(r.reactor) or ("reactor " .. r.reactor:sub(1, 8))
+      local t = ("✓ %s, after %ds"):format(name, math.floor(r.took or 0))
+      if r.was and r.was ~= name then return t .. " (was " .. r.was .. ")", C.info end
+      return t, C.good
+    end
+    if r.status == "none" then return "✗ nothing started in 15 s: check its wiring", C.bad end
+    if r.status == "many" then return "✗ more than one started: " .. tostring(r.note), C.warn end
+    if r.status == "skipped" then return "– skipped: " .. tostring(r.note), C.dim end
+    if r.status == "stopped" then return "stopped", C.dim end
+    return sw.redstone and "waiting" or "", C.dim
+  end
+
+  local function drawPair()
+    local p = S.pair
+    header("Pair switches with reactors")
+    if not p then
+      for k, l in ipairs(PAIR_TEXT) do say(3, 2 + k, l, k <= 2 and C.text or C.dim) end
+      local n = 0
+      for _, sw in ipairs(ed.c.control) do if sw.redstone then n = n + 1 end end
+      say(3, 4 + #PAIR_TEXT, ("%d redstone switches, %d reactors found."):format(n, #(ed.snap.reactors or {})),
+        (n > 0 and #(ed.snap.reactors or {}) > 0) and C.text or C.warn)
+      local x = button(2, FOOT, "START", function()
+        if n == 0 or #(ed.snap.reactors or {}) == 0 then
+          flash("Nothing to pair: it needs redstone switches and reactors.", false)
+          return
+        end
+        S.pair = Pair.new(component, ed)
+        S.pair:step(uptime())
+      end, true)
+      button(x, FOOT, "BACK", function() S.view = "edit" end)
+      if S.msg then say(3, MSG, S.msg, S.msgOk and C.good or C.bad) end
+      return
+    end
+    f:text(4, 3, "SWITCH", C.dim); f:text(14, 3, "DRIVES", C.dim); f:text(31, 3, "FOUND", C.dim)
+    local height = H - 5
+    local at = 1
+    for k, r in ipairs(p.rows) do if r == p.current then at = k end end
+    local first = math.max(0, math.min(#p.rows - height, at - math.floor(height / 2)))
+    local counts = { paired = 0, none = 0, many = 0, skipped = 0, waiting = 0, testing = 0, stopped = 0 }
+    for _, r in ipairs(p.rows) do counts[r.status] = (counts[r.status] or 0) + 1 end
+    for k = 1, height do
+      local r, y = p.rows[first + k], 3 + k
+      if r then
+        local sw = ed.c.control[r.i] or {}
+        local bg = r == p.current and C.sel or C.bg
+        f:rowBg(y, bg)
+        local text, colour = pairStatus(r, p)
+        f:text(2, y, "●", colour, bg)
+        f:text(4, y, fit(r.name, 9), C.text, bg)
+        f:text(14, y, fit(sw.redstone and (sw.redstone .. " " .. Editor.sideName(sw.side)) or "GT machine", 16), C.dim, bg)
+        f:text(31, y, fit(text, W - 31), colour, bg)
+      end
+    end
+    local summary = ("%d paired · %d found nothing · %d skipped · %d to go"):format(counts.paired, counts.none + counts.many,
+      counts.skipped, counts.waiting + counts.testing)
+    say(3, MSG, p.err and ("Stopped: " .. p.err) or summary, p.err and C.bad or C.text)
+    if not p.done then
+      button(2, FOOT, "STOP", function() p:stop(); flash("Stopped: every output is back as it was.") end, false, C.bad)
+    else
+      local n = #p:found()
+      local x = 2
+      if n > 0 then
+        x = button(x, FOOT, ("APPLY %d PAIRS"):format(n), function()
+          for _, pr in ipairs(p:found()) do ed.pairSource(pr.i, pr.reactor) end
+          S.pair, S.view, S.tab = nil, "edit", "switches"
+          flash(("%d sources set: check them, then SAVE."):format(n))
+        end, true)
+      end
+      button(x, FOOT, "BACK", function() S.pair, S.view = nil, "edit" end)
+    end
+  end
+
   local function drawSaved()
     header("Saved " .. env.cfgPath, C.good)
     say(3, 3, "The old file is " .. env.cfgPath .. ".bak.", C.text)
@@ -644,6 +864,7 @@ function Screen.run(env)
   local function draw()
     f = frame.new(W, H)
     if S.view == "pick" then drawPick()
+    elseif S.view == "pair" then drawPair()
     elseif S.view == "review" then drawReview()
     elseif S.view == "saved" then drawSaved()
     else drawEdit() end
@@ -677,7 +898,8 @@ function Screen.run(env)
     ui.fill(1, 1, W, H, C.bg)
     draw()
     while S.running do
-      local ev = table.pack(event.pullMultiple(60, "touch", "key_down", "scroll", "interrupted"))
+      local pairing = S.view == "pair" and S.pair and not S.pair.done
+      local ev = table.pack(event.pullMultiple(pairing and 0.5 or 60, "touch", "key_down", "scroll", "interrupted"))
       local name, redraw = ev[1], false
       if name == "touch" then
         -- touch: screenAddress, x, y, button, player
@@ -695,11 +917,13 @@ function Screen.run(env)
       elseif name == "interrupted" then
         S.running = false
       end
+      if pairing and S.running and not S.pair.done then S.pair:step(uptime()); redraw = true end
       if S.running and redraw then draw() end
     end
   end
 
   local ok, err = xpcall(main, debug.traceback)
+  if S.pair and not S.pair.done then S.pair:stop() end   -- never leave a reactor switched by PAIR
   ui.restore()
   require("term").clear()
   if not ok then error(err, 0) end
