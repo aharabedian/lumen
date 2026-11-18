@@ -10,6 +10,7 @@
 | A **Redstone I/O** block or redstone card (optional) | For a [switch](#switches) that runs generators by a redstone signal. A GT generator can be switched through its adapter instead |
 | An Internet Card | To install and update. You can take it out afterwards |
 | A network card (optional) | Only to report to [LENS](https://github.com/aharabedian/lens) |
+| A Computronics **Radar** (optional) | To wake [big mode](#big-mode) as you walk up: the block, touching the computer or cabled to it |
 
 One computer shows every LSC it can reach. LSCs too far apart for cable can each have their own LUMEN
 computer, all reporting to the same LENS hub.
@@ -68,10 +69,29 @@ LSC or generator reports, to check the adapters are connected.
 
 ![Twelve reactors as tiles on a wall of screens 7 wide, 3 tall (160 × 33)](images/lumen-tiles-wall.png)
 
-**Tap a group** for its page: the **LADDER** (the fill against each step's marks, and how many it needs now) and
-the **ORDER** (who starts next, each member's run time over 24 hours, and why one is left out).
+**Tap a group** for its page: the **LADDER** (the fill on a bar with each step's mark under it; each step's marks,
+how many run in all and whether it's on; and why that many are needed now) and the **ORDER** (the members by run
+time over 24 hours: who starts next and who stops first, and why one is left out). It only acts when the number
+needed changes; it doesn't swap running reactors to even out their run time.
 
 ![A group's page](images/lumen-group.png)
+
+### Big mode
+
+After `glanceAfter` seconds (5 minutes) with no tap and nobody near, or when you tap **BIG** in the header, the
+screen switches to a few, big characters (`glanceScale` times bigger: 53 × 11 on a 7 × 3 wall): how full in big
+digits, time to full or empty, the net, how many sources run, each group, faults and trips, a fill bar, and the
+worst alert. Everything else carries on as before (switching, alerts, LENS).
+
+![Big mode on a 7 x 3 wall](images/lumen-big.png)
+
+**A tap anywhere wakes it** (and presses nothing underneath). With a Computronics **Radar**, walking up does too:
+
+- A player within `wakeRange` blocks (6; 8 at most, through walls) wakes it within a couple of seconds, and keeps
+  it awake while they stand there. `wakePlayers` limits it to some players.
+- In big mode LUMEN asks the radar every 2 s. Awake, it asks only when it's about to go big, since each look
+  pauses the computer half a second.
+- After **BIG**, only someone arriving wakes it, not whoever tapped it.
 
 **Tap an LSC** (or All LSCs) for its page: fill history over **80 MIN**, **8 H** or **24 H**, its averages over 5 s,
 5 min and 1 h, time to full or empty, passive loss, maintenance, wireless, capacitors, and **the last 24 hours**

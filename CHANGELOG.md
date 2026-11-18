@@ -6,6 +6,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Big mode**: after `glanceAfter` seconds (5 minutes) with no tap and nobody near, or **BIG** in the header, a few big
+  characters for across the room (`glanceScale` times bigger): how full, time to full or empty, the net, how many
+  run, the groups, faults and trips, the worst alert. A tap wakes it; so does a player walking up to a Computronics
+  Radar (`wakeRange`, `wakePlayers`; standing there keeps it awake). `lumen-setup`'s GENERAL tab sets it.
 - **Reactor tiles**: POWER shows each switch and its source as a tile (TILES or ROWS, kept across restarts): what
   it runs and makes, its heat on a bar that ends at its trip mark, why, RESET and AUTO / ON / OFF. A tile's title
   turns red for a fault, a trip, an error or a reactor still running while switched off. Twelve reactors fit a
@@ -15,8 +19,8 @@ versions follow [Semantic Versioning](https://semver.org/).
   A bad alert; LENS gets `lumen_switch_trip`.
 - **Groups** (`groups`, and `group` on a switch): a ladder of steps runs as many members as the fill needs; the
   least run time starts first (`rotate`), and a member that's faulted, tripped or set by hand is skipped. A line
-  per group on the main screen with its members under it ("Not in a group" after); tap it for its page (the
-  ladder and who starts next). LENS gets
+  per group on the main screen with its members under it ("Not in a group" after); tap it for its page (its
+  steps, the fill, why that many are needed, and who starts next and stops first). LENS gets
   `lumen_group_needed` and `lumen_group_running`.
 - **Always-on switches** (`always = true`): no marks, ON / OFF on the screen; faults and heat trips still stop it
   (a breeder that should never stop). `lumen-setup`'s **Runs ▸** picks by fill, always, or a group.

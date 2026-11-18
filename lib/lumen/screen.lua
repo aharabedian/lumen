@@ -3,6 +3,7 @@
   local s = require("lumen.screen").new(gpu, w, h)
   s:draw(model, actions)   build the frame and send the GPU only what changed since the last draw
   s:tap(x, y) -> bool      run the touch target under (x, y)
+  s:activate()             make this screen's resolution the GPU's and repaint from scratch (big mode and back)
   s:restore()              plain terminal colors again (on exit)
 
   model = {
@@ -16,9 +17,10 @@
     alerts = { { id, level, text, since }... },
     detail = (page "lsc") see lumen.pages.detail,
     group = (page "group") the group shown (lumen.pages.group),
+    glance = bool: big mode (lumen.pages.glance, nothing else)
   }
   actions = { quit(), open(address), back(), range(k), mode(switch name, "auto" | "on" | "off"), reset(switch name),
-    group(name) (its page), view("tiles" | "rows") }
+    group(name) (its page), view("tiles" | "rows"), glance() (BIG: big mode now; no button without it), wake() }
 
   A header (health, the total's fill and net, QUIT), then the page: lumen.pages.main or lumen.pages.detail.
 ]]
@@ -28,6 +30,7 @@ local frame = require("lumen.frame")
 local mainPage = require("lumen.pages.main")
 local detailPage = require("lumen.pages.detail")
 local groupPage = require("lumen.pages.group")
+local glancePage = require("lumen.pages.glance")
 
 local screen = {}
 
@@ -49,11 +52,16 @@ local function header(f, m, actions)
     summary = summary .. ("   %.1f%% full   net %s EU/t"):format(main.fill * 100, signed(main.net))
   end
   local qx = f.w - 6
+  local bx = actions.glance and qx - 6 or qx
   local right = ("%sv%s"):format(m.lens and ("LENS " .. m.lens .. " · ") or "", m.version or "?")
-  if 18 + Gui.len(summary) + 2 > qx - Gui.len(right) - 2 then right = "v" .. (m.version or "?") end
-  local rx = qx - Gui.len(right) - 2
+  if 18 + Gui.len(summary) + 2 > bx - Gui.len(right) - 2 then right = "v" .. (m.version or "?") end
+  local rx = bx - Gui.len(right) - 2
   f:text(18, 1, Gui.fit(summary, math.max(0, rx - 19)), C.text, C.panel)
   f:text(rx, 1, right, C.dim, C.panel)
+  if actions.glance then
+    f:text(bx, 1, " BIG ", C.text, C.line)
+    f:hit(bx, 1, bx + 4, 1, actions.glance)
+  end
   f:text(qx, 1, " QUIT ", C.text, C.line)
   f:hit(qx, 1, qx + 5, 1, actions.quit)
 end
@@ -70,6 +78,7 @@ end
 function S:build(m, actions)
   local f = frame.new(self.w, self.h)
   f.now = m.now
+  if m.glance then glancePage.build(f, m, actions); return f end
   header(f, m, actions)
   if m.page == "lsc" and m.detail then detailPage.build(f, m, actions)
   elseif m.page == "group" and m.group then groupPage.build(f, m, actions)
@@ -90,6 +99,12 @@ function S:draw(m, actions)
 end
 
 function S:tap(x, y) return frame.tap(self.hits, x, y) end
+
+function S:activate()
+  self.ui.gpu.setResolution(self.w, self.h)
+  self.ui.fill(1, 1, self.w, self.h, C.bg)
+  self.last = {}
+end
 
 function S:restore() self.ui.restore() end
 

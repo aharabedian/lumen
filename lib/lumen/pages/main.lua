@@ -10,6 +10,8 @@
 
   main.build(f, m, actions)   f: lumen.frame; m, actions: lumen.screen's model and actions
   main.alerts(f, m, x, y, width, lastRow)   the alerts list (the detail page shows it too)
+  main.levelOf(reading, alerts) -> "bad" | "warn" | nil   the worst alert about an LSC
+  main.etaText(reading) -> text, colour                   "full in 3h 20m", "standby, empty in ..."
 
   Panels grow with the room they get: a name and figures line, a fill bar (up to six rows tall), flows (5 s
   averages), longer averages, and the fill history in the rows left. With 120 columns or more, several LSCs sit
@@ -25,7 +27,7 @@ local main = {}
 local C = frame.C
 local si, signed, ago = frame.si, frame.signed, frame.ago
 
-local function levelOf(r, alerts)
+function main.levelOf(r, alerts)
   local level
   for _, a in ipairs(alerts or {}) do
     if r.address ~= "" and a.id:sub(-#r.address - 1) == ":" .. r.address then
@@ -451,7 +453,7 @@ function main.build(f, m, actions)
     local h = math.max(2, math.min(40, (bottom - top + 2) // gridRows - 1))
     local y = top
     if m.total then
-      panel(f, m.total, 2, y, width, h, levelOf(m.total, m.alerts), function() actions.open("") end)
+      panel(f, m.total, 2, y, width, h, main.levelOf(m.total, m.alerts), function() actions.open("") end)
       y = y + h + 1
     end
     local pw = (width - (cols - 1) * 3) // cols
@@ -462,7 +464,7 @@ function main.build(f, m, actions)
         f:text(2, bottom + 1, ("+%d more LSCs"):format(#m.lscs - i + 1), C.dim)
         break
       end
-      panel(f, r, 2 + col * (pw + 3), py, pw, h, levelOf(r, m.alerts), function() actions.open(r.address) end)
+      panel(f, r, 2 + col * (pw + 3), py, pw, h, main.levelOf(r, m.alerts), function() actions.open(r.address) end)
     end
   end
 

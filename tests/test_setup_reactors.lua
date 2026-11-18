@@ -29,6 +29,7 @@ for k = 1, 12 do
   M.components[addr("c", k)] = rs[k].entry
   M.components[addr("e", k)] = reactors[k].entry
 end
+M.components["r0010000-0000"] = Gen.radar().entry   -- a Computronics radar, to wake big mode
 rs[3].out[1] = 15
 rs[4].inp[3] = 15         -- MOX 4's fault input (its block's south side) says trouble
 local function world()
@@ -183,6 +184,15 @@ seen(function()
 end)
 add({ tap(" BACK ", FOOT) })
 
+---------------------------------------------------------------- big mode
+add({ tap(" GENERAL ", 2) })
+seen(function() found.bigRow = M.find("Big mode", 4) and M.find("after 5   min idle", 4) and M.find("radar: within 6 ", 4) end)
+add({ tapField("after", 7, 4) })
+add(typed("2", 3))
+add({ tapField("blocks, only", 14, 4) })
+add(typed("Steve, Alex"))
+seen(function() found.wake = M.find("Steve, Alex", 4) end)
+
 ---------------------------------------------------------------- save
 add({ tap(" SAVE ", FOOT), tap(" SAVE ", FOOT), tap(" QUIT ", FOOT) })
 local ok, err = setup()
@@ -200,6 +210,8 @@ check(p.fault and p.none, "a fault input on: skipped; a block that runs nothing 
 check(p.apply and p.restored, "9 pairs found; every output back as it was (block 3 on again)")
 check(found.applied, "APPLY: the switches' sources")
 check(found.stopped, "STOP part-way: every output back at once")
+check(found.bigRow, "GENERAL: big mode after 5 min, and the radar found to wake it")
+check(found.wake, "who wakes it: Steve and Alex")
 
 local c = assert(config.load(CFG))
 local sw = {}
@@ -213,6 +225,8 @@ local members = 0
 for _, s in ipairs(c.control) do if s.group == "Nuclear" then members = members + 1 end end
 check(members == 11 and sw["MOX 12"].always == true and sw["MOX 12"].group == nil and sw["MOX 12"].onBelow == nil
   and sw["MOX 1"].onBelow == nil, "11 in the group, MOX 12 always on; none of them with marks")
+check(c.glanceAfter == 120 and c.wakePlayers and c.wakePlayers[1] == "Steve" and c.wakePlayers[2] == "Alex" and c.glanceScale == 3,
+  "big mode saved: after 2 minutes, woken by Steve or Alex")
 check(sw["MOX 1"].source == "Reactor e001" and sw["MOX 2"].source == "Reactor e005" and sw["MOX 5"].source == "Reactor e002"
   and sw["MOX 4"].source == nil and sw["MOX 6"].source == nil and sw["MOX 12"].source == nil, "the sources PAIR found, saved")
 
@@ -231,10 +245,16 @@ seen(function()
   found.group = M.oob == 0 and M.find("Step 2", 15) and M.find(" + STEP ", 15) and M.find(" ADD EVERY SWITCH ", 15)
   H.screen("lumen-setup-groups-tier2")
 end)
+add({ tap(" GENERAL ", 2) })
+seen(function()
+  found.general = M.oob == 0 and M.find("Wake it", 4) and M.find("Start on boot", 4)
+  H.screen("lumen-setup-general-tier2")
+end)
 add({ tap(" QUIT ", 25) })
 ok, err = setup()
 check(ok and found.switch, "tier 2: a switch's panel fits, heat trip and fault and all" .. (ok and "" or (": " .. tostring(err))))
 check(found.group, "tier 2: a group's panel fits")
+check(found.general, "tier 2: GENERAL fits, big mode and all")
 M.resize(160, 50)
 
 H.done()

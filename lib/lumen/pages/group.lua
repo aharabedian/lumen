@@ -1,8 +1,9 @@
---[[ lumen.pages.group: one group of switches. LADDER: the fill it follows against each step's marks (how many run
-  below each, and when they go back), and how many it needs now. ORDER: its members by who starts next (least
-  run time in the last 24 hours, or lumen.cfg's order without rotate), each with what it's doing and why it's
-  left out (a fault, a heat trip, set by hand). Side by side from 120 columns, else one above the other.
-  BACK returns to the main page.
+--[[ lumen.pages.group: one group of switches. LADDER: the fill on a bar with each step's mark under it, then a
+  table of the steps (on below, off above, how many run in all, on or off now) and why that many are needed now.
+  ORDER: its members by run time in the last 24 hours (lumen.cfg's order without rotate): who starts next (the
+  first standing by) and stops first (the last running), and why one is left out (a fault, a heat trip, set by
+  hand). It only acts when the number needed changes; it never swaps running ones to even them out. Side by side
+  from 120 columns, else one above the other. BACK returns to the main page.
 
   group.build(f, m, actions)   m.group: a lumen.control group (c.groups entry); actions.back()
 ]]
@@ -28,43 +29,92 @@ local function memberState(s)
   return s.on and "ON" or "standby", s.on and C.good or C.dim
 end
 
-local function ladder(f, g, x, top, bottom, width)
-  local h = bottom - top
-  local function yOf(p) return top + math.floor((100 - p) / 100 * h + 0.5) end
-  for _, p in ipairs(h >= 16 and { 100, 75, 50, 25, 0 } or { 100, 50, 0 }) do
-    f:text(x, yOf(p), Gui.rfit(p .. "%", 4), C.dim)
-  end
-  local fillY = g.fill and yOf(g.fill * 100)
-  for y = top, bottom do f:text(x + 5, y, "      ", C.text, (fillY and y >= fillY) and C.good or C.line) end
-  local marked, cum = {}, 0
-  for k, st in ipairs(g.steps) do
-    local prev = cum
-    cum = cum + st.run
-    local label = k == 1 and ("below %g%%: %d on, all off above %g%%"):format(st.onBelow, cum, st.offAbove)
-      or ("below %g%%: %d on, back to %d above %g%%"):format(st.onBelow, cum, prev, st.offAbove)
-    local y = yOf(st.onBelow)
-    marked[y] = true
-    f:text(x + 12, y, "── " .. Gui.fit(label, width - 15), st.active and C.text or C.dim)
-  end
-  if fillY then
-    local y = fillY
-    if marked[y] then y = (y < bottom and not marked[y + 1]) and y + 1 or y - 1 end
-    local now = ("◀ %.1f%% now: %s"):format(g.fill * 100, g.need and (g.need .. " needed") or "deciding")
-    f:text(x + 12, y, Gui.fit(now, width - 12), C.info)
+-- "1 and 2", "1, 2 and 3"
+local function andList(list)
+  if #list <= 1 then return table.concat(list) end
+  return table.concat(list, ", ", 1, #list - 1) .. " and " .. list[#list]
+end
+
+-- tight: no scale under the marks and no blank rows (for 25 rows).
+local function ladder(f, g, x, y, width, tight)
+  local barW = math.max(20, math.min(40, width - 14))
+  local bx = x + 6
+  local function col(p) return bx + math.max(0, math.min(barW - 1, math.floor(p / 100 * barW))) end
+  f:text(x, y, "fill", C.dim)
+  f:bar(bx, y, barW, 1, g.fill or 0, C.good)
+  f:text(bx + barW + 1, y, g.fill and ("%.1f%%"):format(g.fill * 100) or "?", C.text)
+  for _, st in ipairs(g.steps) do f:text(col(st.onBelow), y + 1, "▲", st.active and C.text or C.dim) end
+  f:text(x, y + 1, "marks", C.dim)
+  if tight then
+    y = y + 2
   else
-    f:text(x + 12, bottom, Gui.fit("◀ " .. (g.why or "can't read the LSC"), width - 12), C.warn)
+    f:text(bx, y + 2, "0%", C.dim)
+    f:text(col(50) - 1, y + 2, "50%", C.dim)
+    f:text(bx + barW - 4, y + 2, "100%", C.dim)
+    y = y + 4
   end
+  f:text(x, y, "STEP", C.dim)
+  f:text(x + 6, y, "ON BELOW", C.dim)
+  f:text(x + 16, y, "OFF ABOVE", C.dim)
+  f:text(x + 27, y, "RUNS", C.dim)
+  f:text(x + 35, y, "NOW", C.dim)
+  local cum, on, byMark = 0, {}, {}
+  for k, st in ipairs(g.steps) do
+    cum = cum + st.run
+    y = y + 1
+    local c = st.active and C.text or C.dim
+    f:text(x, y, tostring(k), c)
+    f:text(x + 6, y, ("%g%%"):format(st.onBelow), c)
+    f:text(x + 16, y, ("%g%%"):format(st.offAbove), c)
+    f:text(x + 27, y, tostring(cum) .. (k > 1 and (" (+%d)"):format(st.run) or ""), c)
+    f:text(x + 35, y, st.active and "on" or "off", st.active and C.good or C.dim)
+    if st.active then on[#on + 1] = tostring(k) end
+    byMark[st.onBelow] = byMark[st.onBelow] or {}
+    table.insert(byMark[st.onBelow], tostring(k))
+  end
+
+  y = y + (tight and 1 or 2)
+  if g.fill and g.need then
+    local steps = #on == 0 and "no step is on"
+      or ((#on == 1 and "step " or "steps ") .. andList(on) .. (#on == 1 and " is on" or " are on"))
+    local need = g.need == 1 and "so 1 is needed" or ("so %d are needed"):format(g.need)
+    f:text(x, y, Gui.fit(("%.1f%% now: %s, %s"):format(g.fill * 100, steps, need), width), C.info)
+  else
+    f:text(x, y, Gui.fit(g.why or "can't read the LSC: holding", width), C.warn)
+  end
+  local marks = {}
+  for mark, ks in pairs(byMark) do if #ks > 1 then marks[#marks + 1] = mark end end
+  table.sort(marks, function(p, q) return p > q end)
+  for _, mark in ipairs(marks) do
+    y = y + 1
+    local ks = byMark[mark]
+    f:text(x, y, Gui.fit(("Steps %s %s start below %g%%, so together."):format(andList(ks),
+      #ks == 2 and "both" or "all", mark), width), C.warn)
+  end
+  return y
+end
+
+-- A bar of `w` cells, `frac` of it in `color`, the rest dim; a little shorter than a row, so rows stay apart.
+local function thinBar(f, x, y, w, frac, color)
+  local n = math.floor(math.max(0, math.min(1, frac)) * w + 0.5)
+  if n > 0 then f:text(x, y, string.rep("▇", n), color) end
+  if n < w then f:text(x + n, y, string.rep("▇", w - n), C.line) end
 end
 
 local function order(f, g, x, y, width, last)
+  local nameW = 8
+  for _, s in ipairs(g.order) do nameW = math.max(nameW, Gui.len(s.name)) end
+  nameW = math.min(nameW, 18)
   local barW = width >= 90 and 20 or 10
-  local cols = { num = x, name = x + 3, now = x + 13, bar = x + 29, note = x + 29 + barW + 8 }
+  local cols = { num = x, name = x + 3, now = x + 4 + nameW }
+  cols.bar = cols.now + 15
+  cols.note = cols.bar + barW + 8
   f:text(cols.num, y, "#", C.dim)
   f:text(cols.name, y, "SWITCH", C.dim)
   f:text(cols.now, y, "NOW", C.dim)
   f:text(cols.bar, y, "RUN TIME, 24 H", C.dim)
-  f:text(cols.note, y, "NOTE", C.dim)
-  -- Who starts first and who stops first, among the members in the group.
+  if cols.note < x + width - 8 then f:text(cols.note, y, "NOTE", C.dim) end
+  -- Who starts next (the first standing by) and stops first (the last running), among the members in the group.
   local firstOff, lastOn
   for _, s in ipairs(g.order) do
     local _, _, out = memberState(s)
@@ -82,13 +132,13 @@ local function order(f, g, x, y, width, last)
     if not out then rank = rank + 1 end
     local secs = g.hours and g.hours[s.name] or 0
     f:text(cols.num, row, out and "–" or tostring(rank), C.dim)
-    f:text(cols.name, row, Gui.fit(s.name, 9), C.text)
-    f:text(cols.now, row, Gui.fit(state, 15), colour)
-    f:bar(cols.bar, row, barW, 1, secs / 86400, s.on and C.good or C.dim)
+    f:text(cols.name, row, Gui.fit(s.name, nameW), C.text)
+    f:text(cols.now, row, Gui.fit(state, 14), colour)
+    thinBar(f, cols.bar, row, barW, secs / 86400, s.on and C.good or C.dim)
     f:text(cols.bar + barW + 1, row, ago(secs), C.text)
     local note = out
-    if not note and g.rotate and s == firstOff then note = "next to start: least run time" end
-    if not note and g.rotate and s == lastOn then note = "first to stop: most run time" end
+    if not note and s == firstOff then note = g.rotate and "next to start: least run time" or "next to start" end
+    if not note and s == lastOn then note = g.rotate and "first to stop: most run time" or "first to stop" end
     if note then f:text(cols.note, row, Gui.fit(note, math.max(0, x + width - cols.note)), out and colour or C.dim) end
     row = row + 1
   end
@@ -107,22 +157,23 @@ function group.build(f, m, actions)
 
   local wide = f.w >= 120
   local lastRow = f.h - 2
+  local why = "It only acts when the number needed changes; it doesn't swap running ones."
   if wide then
-    local bottom = math.min(6 + 20, lastRow - 6)
     f:text(2, 5, "LADDER", C.accent)
     f:text(10, 5, "how many run at each fill", C.dim)
-    ladder(f, g, 2, 6, bottom, 53)
-    f:text(58, 5, "ORDER", C.accent)
-    f:text(65, 5, "who starts next, from the top", C.dim)
-    local y = order(f, g, 58, 6, f.w - 58, lastRow - 3)
-    f:text(58, y + 1, Gui.fit("One more needed: the top one off starts. One fewer: the bottom one on stops. A member", f.w - 59), C.dim)
-    f:text(58, y + 2, Gui.fit("left out is skipped, and each still waits a minute between its own switches.", f.w - 59), C.dim)
+    ladder(f, g, 2, 7, 57)
+    local ox = 62
+    f:text(ox, 5, "ORDER", C.accent)
+    f:text(ox + 7, 5, Gui.fit("by run time over 24 h: the least starts first, the most stops first", f.w - ox - 7), C.dim)
+    local y = order(f, g, ox, 7, f.w - ox, lastRow - 2)
+    f:text(ox, y + 1, Gui.fit(why, f.w - ox), C.dim)
   else
     f:text(2, 5, "LADDER", C.accent)
-    local bottom = math.min(6 + 10, lastRow - 6)
-    ladder(f, g, 2, 6, bottom, width)
-    f:text(2, bottom + 2, "ORDER", C.accent)
-    order(f, g, 2, bottom + 3, width, lastRow)
+    local y = ladder(f, g, 2, 6, f.w - 2, f.h < 30)
+    f:text(2, y + 1, "ORDER", C.accent)
+    f:text(9, y + 1, Gui.fit("by run time over 24 h", f.w - 10), C.dim)
+    y = order(f, g, 2, y + 2, f.w - 2, lastRow - 1)
+    f:text(2, y, Gui.fit(why, f.w - 2), C.dim)
   end
 end
 

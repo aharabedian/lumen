@@ -44,7 +44,8 @@ local function main()
   app:start(computer.uptime())
   local nextTick = computer.uptime() + cfg.interval
   while app.running do
-    local ev = table.pack(event.pullMultiple(math.max(0.05, nextTick - computer.uptime()),
+    local due = app:senseDue()
+    local ev = table.pack(event.pullMultiple(math.max(0.05, math.min(nextTick, due or math.huge) - computer.uptime()),
       "touch", "modem_message", "interrupted"))
     local now = computer.uptime()
     if ev[1] == "touch" then
@@ -56,6 +57,8 @@ local function main()
     elseif ev[1] == "interrupted" then
       app.running = false
     end
+    due = app:senseDue()
+    if app.running and due and now >= due then app:sense(now) end
     if app.running and now >= nextTick then
       app:tick(now)
       nextTick = now + cfg.interval

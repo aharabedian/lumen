@@ -16,14 +16,15 @@ path, forget cached `lumen.*` modules, and say "run lumen-update" if they're mis
 
 | Module | Does |
 |---|---|
-| `lumen.app` | The program's state: every `interval`, reads LSCs and sources, runs the switches, history, alerts, beep, redraw, LENS; saves state every 5 minutes and on exit |
+| `lumen.app` | The program's state: every `interval`, reads LSCs and sources, runs the switches, history, alerts, beep, redraw, LENS; saves state every 5 minutes and on exit; big mode (when to go big, waking on a tap or someone arriving) |
+| `lumen.presence` | Whether someone is at the screen: a Computronics radar's players within `wakeRange` (`wakePlayers`) |
 | `lumen.power` | Finds LSCs (`gt_machine` whose `getName()` is `multimachine.supercapacitor`, checked once per address) and reads them into readings; totals; durations |
 | `lumen.sources` | GT generators named in `sources`, and IC2 reactors (`reactor`, `reactor_chamber`) found by themselves. Read only |
 | `lumen.control` | Switches: decides on or off from the fill (marks, `minSwitch`, holding when unreadable), sets a redstone output or a GT machine's work, reads it back; manual modes; fault inputs (read a redstone input, stop, latch, RESET). The only module that changes the game, and only what `control` names; heat trips (a source reactor's heat or how fast it climbs: off and latched until RESET, raised 5 points after a RESET while still hot); groups (a ladder of steps sets how many members run; the least run time starts first; manual, faulted and tripped members are left out) |
 | `lumen.history` | Fill at three ranges (30 s, 3 min and 9 min samples, 160 each) and hourly totals for 48 hours: EU in and out, peak draw, lowest fill, switches' time on; the net over a window |
 | `lumen.state` | `/home/lumen-state.cfg`: manual modes, latched faults, heat trips, group steps, TILES or ROWS, and history between runs; a real-time clock from a file's modification time |
 | `lumen.alerts` | Alerts from readings, sources and switches (pure), with a hold each; the drain judgement (`alerts.drain`); a tracker that raises after the hold and clears a minute after; health |
-| `lumen.screen` | Draws a model: the header, then `lumen.pages.main` (panels; POWER: group lines, then each switch with its source as tiles or rows; alerts), `lumen.pages.detail` (one LSC) or `lumen.pages.group` (a group's ladder and order). Sends the GPU only changed rows or segments |
+| `lumen.screen` | Draws a model: the header, then `lumen.pages.main` (panels; POWER: group lines, then each switch with its source as tiles or rows; alerts), `lumen.pages.detail` (one LSC) `lumen.pages.group` (a group's ladder and order), or `lumen.pages.glance` (big mode, at its own resolution). Sends the GPU only changed rows or segments |
 | `lumen.frame` | A frame of row segments and touch targets, and widgets: buttons, bars, charts; `paint` sends the GPU only what changed (a row with overlapping segments, whole) |
 | `lumen.config` | `/home/lumen.cfg`: defaults and checks |
 | `lumen.telemetry` | Optional reporting to LENS (lens/1) |
@@ -63,6 +64,7 @@ The tests run against `tests/mocks/oc.lua`. This table says which of its behavio
 | `setActive` is a second "on" input beside redstone: the reactor runs if **either** is on. `setActive(false)` can't stop a reactor its redstone runs; `setActive(true)` holds one on whatever its redstone says | Seen in game (with the redstone on, then off, 2026-11-14) |
 | The `setActive(true)` flag is **kept in the reactor**: it stayed on with the computer off, the adapter broken, and a lever switched on and off. Only `setActive(false)` clears it. LUMEN never sets it | Seen in game (the user, 2026-11-14) |
 | `screen.getAspectRatio()` gives a multiblock screen's size in blocks; text is drawn as large as fits keeping the resolution's shape; characters are twice as tall as wide; about 1/8 block of border at each edge (`resolution = "fit"`: 160 × 33 on 7 × 3) | Seen in game on a 3 × 4 screen with the same formula (2026-11-12); the 1/8-block border is an estimate |
+| A Computronics **Radar** block is component `radar`: `getPlayers([distance])` -> `{ { name, distance }... }` (x, y, z only if its config allows), within `distance` (8 at most, a sphere, no line of sight needed); each call pauses the computer 0.5 s and costs 5 energy a block | **Seen in game** (2026-11-18): walking up wakes big mode. The pause and the fields are from GTNH 2.9.0's source (Computronics 1.9.13) |
 | A **Redstone I/O block keeps its output** when its computer shuts down, and when the cable to it is broken | Seen in game (2026-11-14): never run a reactor through one |
 | A **redstone card** in the computer's case drops its output to 0 when the computer shuts down (cleanly) | Seen in game (2026-11-14) |
 | A redstone card's output drops to 0 when the computer loses power | Seen in game (2026-11-14) |
