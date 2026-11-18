@@ -8,7 +8,9 @@
   app:tick(now)                      every cfg.interval seconds: read LSCs and sources, switch, history, alerts,
                                      beep, redraw, report; save state every 5 minutes
   app:onTouch(x, y, now, player?)    tap the screen, redraw (and save at once when a switch's mode changed); in big
-                                     mode a tap only wakes it. What it changes goes in the log with the player's name
+                                     mode a tap only wakes it. What it changes goes in the log with the player's name.
+                                     With cfg.operators, only they can switch (AUTO / ON / OFF, RESET) or QUIT: anyone
+                                     else's tap changes nothing, says who can for 5 s, and is logged
   app:senseDue() -> time | nil       when to ask the radar next (big mode: every 2 s)
   app:sense(now)                     ask them: someone arriving wakes big mode; someone near keeps it awake
   app:onModem(port, data)            a packet: answers the LENS hub's hello
@@ -86,8 +88,19 @@ function app.new(cfg, env)
   self.screen = screen.new(env.gpu, env.w, env.h)       -- made last: its resolution is the one set
   self.big = false
   self.lens = Telemetry.open(cfg, env.modem)
+  -- Only cfg.operators (when set) may switch or quit: true, or false having said so and logged the try.
+  local function may(what)
+    local ops = cfg.operators
+    if type(ops) ~= "table" or #ops == 0 then return true end
+    for _, n in ipairs(ops) do if n == self.player then return true end end
+    local names = #ops == 1 and ops[1] or (table.concat(ops, ", ", 1, #ops - 1) .. " and " .. ops[#ops])
+    self.notice = { text = ("Only %s can switch."):format(names), till = (self.now or 0) + 5 }
+    self.log:add(self:time(), "HAND", "LUMEN", "locked: tried " .. what, self.player or "someone")
+    return false
+  end
   self.actions = {
     quit = function()
+      if not may("QUIT") then return end
       self.running = false
       self.log:add(self:time(), "STOP", "LUMEN", "QUIT on the screen", self.player)
       self.quitLogged = true
@@ -107,10 +120,12 @@ function app.new(cfg, env)
     wake = function() self:wake(self.now or 0) end,
     range = function(k) self.range = k end,
     mode = function(name, mode)
+      if not may(("%s on %s"):format(mode:upper(), name)) then return end
       self.control:setMode(name, mode, self.now or 0)
       self.dirty = true
     end,
     reset = function(name)
+      if not may("RESET on " .. name) then return end
       self.control:reset(name, self.now or 0)
       self.dirty = true
     end,
@@ -147,6 +162,7 @@ function App:model(now)
     switches = self.control.list, sources = self.sources, groups = self.control.groups, hours = self.onTime,
     supplies = self.supplies,
     view = self.view, glance = self.big,
+    notice = self.notice and now < self.notice.till and self.notice.text or nil,
   }
   if self.page == "supplies" then m.time = self:time() end
   if self.page == "timeline" then

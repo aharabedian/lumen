@@ -701,6 +701,17 @@ function Screen.run(env)
       say(x, y, "(blank: anyone); or a tap", C.dim)
     end
     y = y + step
+    label("Who switches")
+    x = field(20, y, 30, "operators", table.concat(c.operators or {}, ", "), function(text)
+      local names = {}
+      for n in text:gmatch("[^,]+") do
+        n = trim(n)
+        if n ~= "" then names[#names + 1] = n end
+      end
+      ed.set("operators", #names > 0 and names or nil)
+    end)
+    say(x, y, "AUTO / ON / OFF, RESET, QUIT (blank: anyone)", C.dim)
+    y = y + step
     label("LENS")
     x = toggle(20, y, "OFF", c.lensPort == nil, function() ed.set("lensPort", nil) end)
     x = toggle(x, y, "ON", c.lensPort ~= nil, function() ed.set("lensPort", c.lensPort or 4243) end)

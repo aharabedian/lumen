@@ -215,6 +215,13 @@ is expected: no drain alert, and the panel says *standby*. Once they've been on 
 judges the rate since they came on, so it means "on, and still not keeping up". A switch with a `source` also
 warns when it's on and that source isn't running, or off and it still is.
 
+### Who can switch
+
+On a shared base, `operators = { "Steve", "Alex" }` (lumen-setup's GENERAL tab, **Who switches**) lets only them tap
+**AUTO / ON / OFF**, **RESET** and **QUIT**. Anyone else's tap changes nothing, the footer says who can for a few
+seconds, and the [timeline](#timeline) logs the try with their name. Looking around (pages, TILES / ROWS, BIG) stays
+open to everyone.
+
 ### Fault inputs
 
 A switch can also watch a **fault signal**: a redstone line from whatever it runs that means trouble. LUMEN

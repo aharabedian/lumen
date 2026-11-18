@@ -57,6 +57,7 @@ local SETTINGS = {
   { "glanceScale", "big mode's characters are this many times bigger (2-6)" },
   { "wakeRange", "blocks: a player this close to a Computronics radar wakes big mode (8 at most)" },
   { "wakePlayers", '{ "Steve" }: only these wake big mode; nil = anyone' },
+  { "operators", '{ "Steve" }: only these can switch (AUTO / ON / OFF, RESET, QUIT); nil = anyone' },
   { "lensPort", "report to LENS on this port; nil = don't" },
   { "lensNode", "this computer's name in LENS" },
   { "lensToken", "the LENS hub's token; nil = none" },

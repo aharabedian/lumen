@@ -23,6 +23,7 @@ names any setting that's wrong.
 | `glanceScale` | `3` | Big mode's characters are this many times bigger (2-6) |
 | `wakeRange` | `6` | Blocks: a player this close to a Computronics radar wakes big mode (1-8) |
 | `wakePlayers` | `nil` | `{ "Steve", "Alex" }`: only these wake it. `nil`: anyone |
+| `operators` | `nil` | `{ "Steve", "Alex" }`: only these can tap AUTO / ON / OFF, RESET and QUIT ([setup](setup.md#who-can-switch)). `nil`: anyone |
 | `lensPort` | `nil` | Report to LENS on this port (LENS's default is `4243`). `nil` means no reporting. Needs a network card |
 | `lensNode` | `"lumen"` | This computer's name in LENS. Give each LUMEN computer its own |
 | `lensToken` | `nil` | The LENS hub's token, if it has one |

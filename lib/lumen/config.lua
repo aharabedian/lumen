@@ -27,6 +27,7 @@ config.DEFAULTS = {
   glanceScale = 3,         -- big mode's characters are this many times bigger
   wakeRange = 6,           -- blocks: a player this close to a Computronics radar wakes big mode (8 at most)
   wakePlayers = nil,       -- { "Steve" }: only these wake it; nil: anyone
+  operators = nil,         -- { "Steve" }: only these can tap AUTO / ON / OFF, RESET and QUIT; nil: anyone
   sources = {},            -- { { address = "a1b2", name = "LFTR", alwaysOn = true }... }: GT generators to show
   control = {},            -- switches: { { name, redstone | machine, side, onBelow, offAbove, ... }... }
   supplies = {},           -- { { name, item = "gregtech:gt.reactorUraniumQuad", damage, below, above, hours, feeds }
@@ -83,6 +84,12 @@ function config.check(c)
   end
   if type(c.wakeRange) ~= "number" or c.wakeRange < 1 or c.wakeRange > 8 then
     return nil, "wakeRange must be a number of blocks, 1-8"
+  end
+  if c.operators ~= nil then
+    if type(c.operators) ~= "table" then return nil, 'operators must be a list of names: { "Steve" }, or nil' end
+    for _, n in ipairs(c.operators) do
+      if type(n) ~= "string" or n == "" then return nil, 'operators must be a list of names: { "Steve" }, or nil' end
+    end
   end
   if c.wakePlayers ~= nil then
     if type(c.wakePlayers) ~= "table" then return nil, 'wakePlayers must be a list of names: { "Steve" }, or nil' end
