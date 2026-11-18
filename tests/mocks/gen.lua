@@ -13,7 +13,15 @@
   local d = Gen.radar(players)         Computronics' radar block ("radar"): getPlayers([distance]) -> { { name,
                                        distance }... } within distance (8 at most), and each call takes 0.5 s;
                                        players = { { name, distance }... } (change it to move them); d.calls
+  local me = Gen.me(items, fluids)     an adapter on an AE2 ME interface ("me_interface"; ctype for "me_controller"):
+                                       items = { { name, damage, label, size }... }, fluids = { { name, label,
+                                       amount }... } (change them to move stock); me.calls; me.broken = "text"
+                                       getItemInNetwork(name, damage) -> the item or nil; getItemsInNetwork(filter)
+                                       -> those matching every field given (exact, as AE2 does); getFluidInNetwork(
+                                       name) -> the fluid or nil; getFluidsInNetwork() -> every fluid; allItems() ->
+                                       an iterator: each call the next item, nil at the end (me.walked: items handed)
 
+  The ME calls are read from GTNH 2.9.0's source (OpenComputers 1.12.68-GTNH, integration/appeng/NetworkControl).
   The radar's calls are read from GTNH 2.9.0's source (Computronics 1.9.13); walking up to one wakes big mode in
   game.
 
@@ -109,6 +117,61 @@ function Gen.radar(players)
       end,
     } }
   return d
+end
+
+function Gen.me(items, fluids, ctype)
+  local me = { items = items or {}, fluids = fluids or {}, calls = 0, walked = 0 }
+  local function guard() me.calls = me.calls + 1; if me.broken then error(me.broken) end end
+  local function copy(t) local o = {} for k, v in pairs(t) do o[k] = v end o.isCraftable = false return o end
+  me.entry = { type = ctype or "me_interface", methods = {
+      getItemInNetwork = "function(name:string|id:number[, damage:number[, nbt:string]]):table OR function(detail:table):table"
+        .. " -- Retrieves the stored item in the network by its unlocalized name.",
+      getItemsInNetwork = "function([filter:table]):table -- Get a list of the stored items in the network.",
+      getFluidInNetwork = "function([name:string]):table OR function(detail:table):table -- Get a list of the stored fluids in the network.",
+      getFluidsInNetwork = "function():table -- Get a list of the stored fluids in the network.",
+      allItems = "function():userdata -- Get an iterator object for the list of the items in the network. ",
+    }, proxy = {
+      allItems = function()
+        guard()
+        local k = 0
+        return function()
+          k = k + 1
+          local it = me.items[k]
+          if not it then return nil end
+          me.walked = me.walked + 1
+          return copy(it)
+        end
+      end,
+      getItemInNetwork = function(name, damage)
+        guard()
+        for _, it in ipairs(me.items) do
+          if it.name == name and (it.damage or 0) == (damage or 0) then return copy(it) end
+        end
+        return nil
+      end,
+      getItemsInNetwork = function(filter)
+        guard()
+        local out = {}
+        for _, it in ipairs(me.items) do
+          local ok = true
+          for k, v in pairs(filter or {}) do if tostring(it[k]) ~= tostring(v) then ok = false end end
+          if ok then out[#out + 1] = copy(it) end
+        end
+        return out
+      end,
+      getFluidInNetwork = function(name)
+        guard()
+        for _, fl in ipairs(me.fluids) do if fl.name == name then return copy(fl) end end
+        return nil
+      end,
+      getFluidsInNetwork = function()
+        guard()
+        local out = {}
+        for _, fl in ipairs(me.fluids) do out[#out + 1] = copy(fl) end
+        return out
+      end,
+    } }
+  return me
 end
 
 return Gen

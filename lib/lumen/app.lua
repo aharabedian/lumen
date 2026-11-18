@@ -15,7 +15,7 @@
   app:stop()                         saves state, closes LENS, restores the screen
   app.running, app.readings, app.total, app.sources, app.control (lumen.control), app.history (lumen.history),
   app.alerts (lumen.alerts tracker), app.screen, app.lens, app.log (lumen.log), app.page ("main" | "lsc" | "group" |
-  "energy" | "timeline"), app.lsc,
+  "energy" | "timeline" | "supplies"), app.supplies (lumen.supplies readings, counted every 30 s), app.lsc,
   app.range, app.group (a group's name), app.view ("tiles" | "rows" | nil: tiles when they all fit; kept),
   app.big (big mode: lumen.pages.glance at a coarser resolution, app.bigScreen), app.presence (lumen.presence)
   app.glanceSize(w, h, scale) -> w, h   big mode's resolution: w / scale (40 at least), the same shape
@@ -40,6 +40,7 @@ local power = require("lumen.power")
 local presence = require("lumen.presence")
 local screen = require("lumen.screen")
 local sources = require("lumen.sources")
+local supplies = require("lumen.supplies")
 local state = require("lumen.state")
 local Telemetry = require("lumen.telemetry")
 local VERSION = require("lumen.version")
@@ -48,6 +49,7 @@ local app = {}
 
 local SAVE_EVERY = 300
 local SENSE_BIG = 2      -- seconds between looks for someone, in big mode
+local SUPPLY_EVERY = 30  -- seconds between counting supplies (a tick each)
 
 function app.glanceSize(w, h, scale)
   local gw = math.min(w, math.max(40, w // scale))
@@ -74,6 +76,8 @@ function app.new(cfg, env)
   self.tl = { range = 2, filter = "all", offset = 0 }
   self.power = power.new(env.component, cfg)
   self.sourceReader = sources.new(env.component, cfg)
+  self.supplyReader = supplies.new(env.component, cfg)
+  self.supplies = {}
   self.control = control.new(env.component, cfg, saved)
   self.view = (saved.view == "tiles" or saved.view == "rows") and saved.view or nil
   self.alerts = alerts.tracker()
@@ -92,6 +96,7 @@ function app.new(cfg, env)
     back = function() self.page = "main" end,
     group = function(name) self.page, self.group = "group", name end,
     energy = function() self.page = "energy" end,
+    supplies = function() self.page = "supplies" end,
     timeline = function() self.page, self.tl.offset = "timeline", 0 end,
     tlRange = function(k) self.tl.range = k end,
     tlFilter = function(id) self.tl.filter, self.tl.offset = id, 0 end,
@@ -140,8 +145,10 @@ function App:model(now)
     lens = self.lens and ("port " .. self.lens.port .. " as " .. self.cfg.lensNode) or nil,
     lscs = self.readings, total = self.total, alerts = list, page = self.page,
     switches = self.control.list, sources = self.sources, groups = self.control.groups, hours = self.onTime,
+    supplies = self.supplies,
     view = self.view, glance = self.big,
   }
+  if self.page == "supplies" then m.time = self:time() end
   if self.page == "timeline" then
     m.time = self:time()
     local cols = timelinePage.cols(self.env.w)
@@ -233,6 +240,22 @@ function App:tick(now)
   self.readings = self.power:read()
   self.total = power.total(self.readings)
   self.sources = self.sourceReader:read()
+  if #(self.cfg.supplies or {}) > 0 and now >= (self.nextSupply or 0) then
+    self.supplies = self.supplyReader:read()
+    self.nextSupply = now + SUPPLY_EVERY
+    local names = {}
+    for _, r in ipairs(self.supplies) do
+      names[r.name] = true
+      if r.ok then self.history:supply(r.name, r.amount, time) end
+    end
+    self.history:keepSupplies(names)
+  end
+  for _, r in ipairs(self.supplies) do
+    r.rate = self.history:supplyRate(r.name, time, 3600)
+    r.rate24 = self.history:supplyRate(r.name, time, 23 * 3600)
+    r.lasts = r.ok and r.rate and r.rate < 0 and r.amount / -r.rate * 3600 or nil
+    r.chart = self.history:supplyChart(r.name)
+  end
   self.onTime = self.history:day("", time).on
   self.control:update(self.readings, self.total, now, { sources = self.sources, onTime = self.onTime })
   self:record()
@@ -267,7 +290,7 @@ function App:tick(now)
   end
   h:keepSources(names)
 
-  local ctx = { now = now, switches = self.control.list, sources = self.sources,
+  local ctx = { now = now, switches = self.control.list, sources = self.sources, supplies = self.supplies,
     rate = function(address, seconds) return h:rate(address, seconds, time) end }
   for _, r in ipairs(all) do
     if r.ok then r.drainSeconds, r.drainHow = alerts.drain(r, self.cfg, ctx) end
@@ -296,7 +319,7 @@ function App:tick(now)
     if bad then self.env.beep() end
   end
   self:lensCall(Telemetry.report, self.readings, self.alerts.list, { total = self.total, sources = self.sources,
-    switches = self.control.list, groups = self.control.groups, history = h, time = time })
+    switches = self.control.list, groups = self.control.groups, supplies = self.supplies, history = h, time = time })
   local after = self.cfg.glanceAfter or 0
   if not self.big and after > 0 and now - (self.active or now) >= after then
     if self.presence.polls then self:sense(now) end    -- someone standing there keeps it awake

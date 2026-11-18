@@ -36,6 +36,10 @@
            ed.addStep(i)  ed.dropStep(i, k)   ed.setStep(i, k, field, value) -> true | nil, why   field: onBelow,
            offAbove, run (whole numbers)
            ed.sideName(side) -> "north" (names, aliases or 0-5)
+  Supplies ed.c.supplies (in order).  ed.addSupply(found) -> i   found: lumen.supplies.search's { kind, name, damage,
+           label }   ed.deleteSupply(i)   ed.setSupply(i, field, value) -> true | nil, why   field: name (unique),
+           below, above, hours (whole numbers, nil = off), feeds (a group's, switch's or source's name; nil)
+           ed.choices("feeds", i) -> groups, switches and sources
   General  ed.set(key, value)
   Saving   ed.result() -> a copy of the config to save
            ed.check() -> true | nil, why        lumen.config's checks on the result
@@ -88,6 +92,7 @@ function Editor.new(old, snap)
   c.sources = c.sources or {}
   c.control = c.control or {}
   c.groups = c.groups or {}
+  c.supplies = c.supplies or {}
   ed.c = c
 
   local function sourceFor(address)
@@ -434,6 +439,44 @@ function Editor.new(old, snap)
     return true
   end
 
+  ---------------------------------------------------------------- supplies
+  local function supplyNamed(name)
+    for _, s in ipairs(c.supplies) do if s.name == name then return s end end
+  end
+
+  function ed.addSupply(found)
+    local name = tostring(found.label or found.name)
+    if supplyNamed(name) then
+      local taken = {}
+      for _, s in ipairs(c.supplies) do taken[s.name] = true end
+      name = nextName(name, taken)
+    end
+    local s = { name = name }
+    if found.kind == "fluid" then s.fluid = found.name else s.item, s.damage = found.name, found.damage or 0 end
+    c.supplies[#c.supplies + 1] = s
+    return #c.supplies
+  end
+
+  function ed.deleteSupply(i) table.remove(c.supplies, i) end
+
+  function ed.setSupply(i, field, value)
+    local s = c.supplies[i]
+    if not s then return nil, "nothing selected" end
+    if field == "name" then
+      if not named(value) then return nil, "a supply needs a name" end
+      local other = supplyNamed(value)
+      if other and other ~= s then return nil, "another supply is already called " .. value end
+      s.name = value
+    elseif field == "below" or field == "above" or field == "hours" then
+      if value ~= nil and not (math.type(value) == "integer" and value >= 0) then
+        return nil, field .. " must be a whole number, 0 or more"
+      end
+      s[field] = value
+    elseif field == "feeds" then s.feeds = value
+    else return nil, "unknown field " .. tostring(field) end
+    return true
+  end
+
   function ed.setFault(i, field, value)
     local sw = c.control[i]
     if not sw then return nil, "nothing selected" end
@@ -507,6 +550,13 @@ function Editor.new(old, snap)
       for gi, g in ipairs(c.groups) do
         out[#out + 1] = { value = g.name, label = g.name, note = ("%d members"):format(#ed.members(gi)) }
       end
+    elseif what == "feeds" then
+      out[1] = { value = nil, label = "nothing said", note = "" }
+      for _, g in ipairs(c.groups) do out[#out + 1] = { value = g.name, label = g.name, note = "a group" } end
+      for _, w in ipairs(c.control) do
+        if not w.group then out[#out + 1] = { value = w.name, label = w.name, note = "a switch" } end
+      end
+      for _, src in ipairs(c.sources) do out[#out + 1] = { value = src.name, label = src.name, note = "a source" } end
     elseif what == "groupLsc" then
       out[1] = { value = nil, label = "all LSCs together", note = "" }
       for _, r in ipairs(ed.lscRows()) do
@@ -629,6 +679,26 @@ function Editor.new(old, snap)
     local was = {}
     for _, sw in ipairs(old.control or {}) do if nowSw[sw.name] then was[#was + 1] = sw.name end end
     if table.concat(order, "\1") ~= table.concat(was, "\1") then out[#out + 1] = "~ switch order: " .. table.concat(order, ", ") end
+    local function sup(x)
+      local what = x.fluid and ("fluid " .. x.fluid) or ("%s:%d"):format(tostring(x.item), x.damage or 0)
+      local alerts = {}
+      if x.below then alerts[#alerts + 1] = "under " .. x.below end
+      if x.above then alerts[#alerts + 1] = "over " .. x.above end
+      if x.hours then alerts[#alerts + 1] = ("under %d h left"):format(x.hours) end
+      return what .. (#alerts > 0 and (", alert " .. table.concat(alerts, ", ")) or "") .. (x.feeds and (", feeds " .. x.feeds) or "")
+    end
+    local oldS = {}
+    for _, x in ipairs(old.supplies or {}) do oldS[x.name] = x end
+    local nowS = {}
+    for _, x in ipairs(c.supplies) do
+      nowS[x.name] = true
+      local w = oldS[x.name]
+      if not w then out[#out + 1] = ("+ supply %s: %s"):format(x.name, sup(x))
+      elseif sup(w) ~= sup(x) then out[#out + 1] = ("~ supply %s: %s"):format(x.name, sup(x)) end
+    end
+    for _, x in ipairs(old.supplies or {}) do
+      if not nowS[x.name] then out[#out + 1] = ("- supply %s"):format(x.name) end
+    end
     local oldG = {}
     for _, g in ipairs(old.groups or {}) do oldG[g.name] = g end
     local nowG = {}
@@ -700,6 +770,9 @@ function Editor.new(old, snap)
       elseif want > n then out[#out + 1] = ("group %s's steps run %d, but it has %d members"):format(g.name, want, n) end
     end
     if c.lensPort and not ed.snap.modem then out[#out + 1] = "LENS is on, but there's no network card" end
+    if #c.supplies > 0 and not ed.snap.me then
+      out[#out + 1] = "supplies are set, but there's no ME interface or controller (an adapter on one) to count them"
+    end
     return out
   end
 

@@ -29,6 +29,8 @@ config.DEFAULTS = {
   wakePlayers = nil,       -- { "Steve" }: only these wake it; nil: anyone
   sources = {},            -- { { address = "a1b2", name = "LFTR", alwaysOn = true }... }: GT generators to show
   control = {},            -- switches: { { name, redstone | machine, side, onBelow, offAbove, ... }... }
+  supplies = {},           -- { { name, item = "gregtech:gt.reactorUraniumQuad", damage, below, above, hours, feeds }
+                           --   or fluid = "ic2coolant" instead of item }: counted in an ME system
   groups = {},             -- { { name, steps = { { onBelow, offAbove, run }... }, rotate, lsc }... }: switches
                            -- that run together, as many as the fill needs (a switch joins with group = name)
   lensPort = nil,          -- report to LENS on this port (4243 is LENS's); nil: don't
@@ -94,6 +96,7 @@ function config.check(c)
     or number(c, "heatBad", 0, 100, "a percent, 0-100")
     or config.checkSources(c.sources)
     or config.checkGroups(c.groups)
+    or config.checkSupplies(c.supplies)
     or config.checkControl(c.control, c.groups)
   if err then return nil, err end
   if c.heatWarn > c.heatBad then return nil, "heatWarn must not be above heatBad" end
@@ -125,6 +128,25 @@ local SIDES = { bottom = true, down = true, top = true, up = true, north = true,
   front = true, west = true, right = true, east = true, left = true }
 
 local function percent(v, lo) return type(v) == "number" and v == v and v >= (lo or 0) and v <= 100 end
+
+function config.checkSupplies(list)
+  if type(list) ~= "table" then return 'supplies must be a list: { { name = "Fuel rods", item = "gregtech:..." } }' end
+  local names = {}
+  for i, s in ipairs(list) do
+    if type(s) ~= "table" or not named(s.name) then return ("supplies[%d] needs a name"):format(i) end
+    local where = ("supply %q"):format(s.name)
+    if names[s.name] then return where .. ": two supplies have that name" end
+    names[s.name] = true
+    if named(s.item) == named(s.fluid) then
+      return where .. ': needs item = "mod:registry_name" (with damage) or fluid = "name", one of them'
+    end
+    if s.damage ~= nil and math.type(s.damage) ~= "integer" then return where .. ": damage must be a whole number" end
+    for _, k in ipairs({ "below", "above", "hours" }) do
+      if s[k] ~= nil and (type(s[k]) ~= "number" or s[k] < 0) then return where .. ": " .. k .. " must be a number, 0 or more" end
+    end
+    if s.feeds ~= nil and not named(s.feeds) then return where .. ": feeds must be a name (what it feeds), or nil" end
+  end
+end
 
 function config.checkGroups(list)
   if type(list) ~= "table" then return 'groups must be a list: { { name = "Nuclear", steps = { ... } } }' end

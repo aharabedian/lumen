@@ -4,7 +4,8 @@
 
   alerts.evaluate(readings, cfg, ctx?) -> { { id, level = "warn" | "bad", text, hold = seconds }... }
     bad first, then by id. readings: lumen.power p:read(); cfg: lumen.config output; ctx = { now, switches
-    (lumen.control c.list), sources (lumen.sources s:read()), rate = fn(address, seconds) -> EU/t (history) }.
+    (lumen.control c.list), sources (lumen.sources s:read()), rate = fn(address, seconds) -> EU/t (history),
+    supplies = { lumen.supplies reading with lasts (seconds; nil when not running down)... } }.
     Ids end in the LSC's address, or the source's or switch's name:
       offline   an LSC can't be read                                               bad    15 s
       fill      below cfg.criticalFill % / below cfg.lowFill %                     bad / warn  30 s
@@ -22,6 +23,8 @@
       faultinput  a switch's fault input can't be read                             bad    15 s
       trip      a switch tripped on its source's heat (until RESET)                bad    at once
       running   a switch is on but its source isn't running, or off but it is      warn   5 min
+      supply    a supply (lumen.supplies) can't be read; below its `below`, above   warn   1 min
+                its `above`, or lasting under its `hours`; none left (with below)  bad    1 min
     and "none" (warn) when no LSC was found.
   alerts.drain(reading, cfg, ctx) -> seconds | nil, how
     How long until the LSC is empty, as the drain alerts judge it, and how ("1 h average", "draining with
@@ -39,6 +42,7 @@
 ]]
 
 local power = require("lumen.power")
+local supplies = require("lumen.supplies")
 
 local alerts = {}
 
@@ -166,6 +170,19 @@ local function switchAlerts(s, ctx, add)
   end
 end
 
+local function supplyAlerts(r, add)
+  local level, text = supplies.status(r)
+  if not level then return end
+  local c, unit, n = r.cfg or {}, r.kind == "fluid" and " L" or "", r.name
+  local say
+  if text == "none left" then say = n .. ": none left"
+  elseif text == "low" then say = ("%s low: %s%s (under %s)"):format(n, power.si(r.amount), unit, power.si(c.below))
+  elseif text == "piling up" then say = ("%s piling up: %s%s (over %s)"):format(n, power.si(r.amount), unit, power.si(c.above))
+  elseif text == "can't be counted" then say = ("%s can't be counted: %s"):format(n, tostring(r.err))
+  else say = ("%s %s (under %g h)"):format(n, text, c.hours or 0) end
+  add("supply:" .. r.name, level, say, 60)
+end
+
 function alerts.evaluate(readings, cfg, ctx)
   ctx = ctx or { now = 0 }
   local out = {}
@@ -174,6 +191,7 @@ function alerts.evaluate(readings, cfg, ctx)
   for _, r in ipairs(readings) do lscAlerts(r, cfg, ctx, add) end
   for _, src in ipairs(ctx.sources or {}) do sourceAlerts(src, cfg, ctx, add) end
   for _, s in ipairs(ctx.switches or {}) do switchAlerts(s, ctx, add) end
+  for _, r in ipairs(ctx.supplies or {}) do supplyAlerts(r, add) end
   table.sort(out, function(a, b)
     if a.level ~= b.level then return RANK[a.level] < RANK[b.level] end
     return a.id < b.id

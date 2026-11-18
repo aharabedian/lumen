@@ -7,7 +7,8 @@
   Tabs: LSCS (a name for each), SOURCES (reactors and GT machines: show it, its name, always on), SWITCHES (a
   row per switch; tap one to edit it: name, group or marks, redstone block and side or GT machine, the LSC it
   follows, its source, its heat trip, its fault input; ▲ ▼ to move it, + NEW, COPY for the next one, DELETE;
-  PAIR), GROUPS (name, rotate, the LSC it follows, members, steps; + NEW, ADD EVERY SWITCH, DELETE), GENERAL
+  PAIR), GROUPS (name, rotate, the LSC it follows, members, steps; + NEW, ADD EVERY SWITCH, DELETE), SUPPLIES (name,
+  alerts, what it feeds, COUNT; + NEW finds it in the ME system by the name its tooltip shows, DELETE), GENERAL
   (alerts, LENS, start on boot). Long choices (a component, an LSC, a source, a group) open a list to tap. READ
   shows which sides of a switch's redstone blocks have a signal coming in, to tell blocks apart. PAIR finds
   which reactor each switch runs by running them one at a time (lumen.setup.pair), after explaining and a
@@ -25,6 +26,7 @@ local files   = require("lumen.setup.files")
 local scan    = require("lumen.setup.scan")
 local Pair    = require("lumen.setup.pair")
 local config  = require("lumen.config")
+local supplies = require("lumen.supplies")
 
 local Screen = {}
 
@@ -32,7 +34,8 @@ local MIN_W, MIN_H = 80, 25
 local KEY = { enter = 28, back = 14, esc = 1, up = 200, down = 208, left = 203, right = 205 }
 local TABS = {
   { id = "lscs", title = "LSCS" }, { id = "sources", title = "SOURCES" },
-  { id = "switches", title = "SWITCHES" }, { id = "groups", title = "GROUPS" }, { id = "general", title = "GENERAL" },
+  { id = "switches", title = "SWITCHES" }, { id = "groups", title = "GROUPS" }, { id = "supplies", title = "SUPPLIES" },
+  { id = "general", title = "GENERAL" },
 }
 local SIDES = scan.SIDES
 local C = Gui.C
@@ -76,6 +79,15 @@ function Screen.run(env)
   local function flash(text, ok) S.msg, S.msgOk = text, ok ~= false end
   local function report(ok, why) if not ok and why then flash(why, false) end end
   local function shrc() return files.shrcText(env.shrcPath, S.boot) end
+  -- SUPPLIES' search (lumen.setup's find view): looked through a step at a time by the event loop.
+  local function startFind(text)
+    local fd = S.find
+    if not fd then return end
+    if fd.search then fd.search:stop() end
+    fd.text = text
+    fd.search, fd.err = supplies.search(component, text)
+    fd.began = uptime()
+  end
   local function dirty() return #ed.changes() > 0 or shrc() ~= nil end
 
   local function commitFocus()
@@ -103,6 +115,10 @@ function Screen.run(env)
     elseif S.tab == "groups" then
       local out = {}
       for gi, g in ipairs(ed.c.groups) do out[#out + 1] = { key = g.name, gi = gi, g = g } end
+      return out
+    elseif S.tab == "supplies" then
+      local out = {}
+      for si_, x in ipairs(ed.c.supplies) do out[#out + 1] = { key = x.name, si = si_, s = x } end
       return out
     end
     return {}
@@ -201,6 +217,7 @@ function Screen.run(env)
     sources = { { 4, "ADDRESS" }, { 14, "WHAT" }, { 42, "NAME" }, { 64, "" } },
     switches = { { 4, "NAME" }, { 23, "RUN BY" }, { 47, "RUNS" }, { 56, "SOURCE" }, { 71, "FAULT" } },
     groups = { { 4, "NAME" }, { 23, "MEMBERS" }, { 33, "STEPS" } },
+    supplies = { { 4, "NAME" }, { 28, "COUNTS" }, { 58, "ALERT" } },
   }
 
   local function drawRow(row, y, bg)
@@ -221,6 +238,16 @@ function Screen.run(env)
       f:text(14, y, fit(r.label, 27), r.found and C.text or C.bad, bg)
       f:text(42, y, fit(r.entry and r.entry.name or "not shown", 21), r.entry and C.text or C.dim, bg)
       f:text(64, y, fit(r.entry and r.entry.alwaysOn and "always on" or "", W - 64), C.info, bg)
+    elseif S.tab == "supplies" then
+      local x = row.s
+      f:text(2, y, "●", ed.snap.me and C.good or C.bad, bg)
+      f:text(4, y, fit(x.name, 23), C.text, bg)
+      f:text(28, y, fit(x.fluid and ("fluid " .. x.fluid) or ("%s:%d"):format(tostring(x.item), x.damage or 0), 29), C.dim, bg)
+      local al = {}
+      if x.below then al[#al + 1] = "<" .. x.below end
+      if x.above then al[#al + 1] = ">" .. x.above end
+      if x.hours then al[#al + 1] = x.hours .. " h" end
+      f:text(58, y, fit(#al > 0 and table.concat(al, " ") or "none", W - 58), #al > 0 and C.text or C.dim, bg)
     elseif S.tab == "groups" then
       local n = #ed.members(row.gi)
       local m, mc = mark(n > 0, true)
@@ -248,6 +275,7 @@ function Screen.run(env)
     sources = "No reactor or GT machine found: put an adapter against a generator's controller or a reactor.",
     switches = "No switches yet: + NEW makes one. A switch turns generators on below one fill and off above another.",
     groups = "No groups yet: + NEW makes one. A group runs as many of its switches as the fill needs.",
+    supplies = "No supplies yet: + NEW finds fuel, coolant or spent rods in the ME system (an adapter on an interface).",
   }
 
   local function drawList()
@@ -477,6 +505,53 @@ function Screen.run(env)
     end
   end
 
+  local function supplyDetail(row)
+    local i, x, y = row.si, row.s, DETAIL
+    say(3, y, "Supply " .. x.name, C.accent, P)
+    local bx = W - 19
+    bx = button(bx, y, "COUNT", function()
+      local r = supplies.new(component, { supplies = { x } }):read()[1]
+      if r and r.ok then flash(("%s: %s%s in the ME system now"):format(x.name, frame.si(r.amount), supplies.unit(r.kind)))
+      else flash(("%s can't be counted: %s"):format(x.name, r and tostring(r.err) or "?"), false) end
+    end)
+    button(bx, y, "DELETE", function()
+      if S.confirm == "sdelete" then ed.deleteSupply(i); S.sel.supplies = nil; S.confirm = nil
+      else S.confirm = "sdelete"; flash("Tap DELETE again to delete " .. x.name, false) end
+    end, false, S.confirm == "sdelete" and C.bad or nil)
+
+    y = y + 1
+    f:text(3, y, "Name", C.dim, P)
+    local fx = field(12, y, 26, "supname", x.name, function(text)
+      local ok, why = ed.setSupply(i, "name", text)
+      if ok then S.sel.supplies = text else return why end
+    end)
+    say(fx, y, "on screen, in alerts and in LENS", C.dim, P)
+    y = y + 1
+    f:text(3, y, "Counts", C.dim, P)
+    local what = x.fluid and ("the fluid " .. x.fluid .. " (in L)") or ("the item %s, damage %d"):format(tostring(x.item), x.damage or 0)
+    say(12, y, what, C.text, P)
+    y = y + 1
+    local function num(px, id, key, label)
+      f:text(px, y, label, C.dim, P)
+      return field(px + Gui.len(label) + 1, y, 7, id, x[key], function(text)
+        if text == "" then ed.setSupply(i, key, nil); return end
+        local ok, why = ed.setSupply(i, key, whole(text, 0, 2 ^ 31) or -1)
+        if not ok then return why end
+      end)
+    end
+    f:text(3, y, "Alert", C.dim, P)
+    local ax = num(12, "supbelow", "below", "under")
+    ax = num(ax, "supabove", "above", "over")
+    ax = num(ax, "suphours", "hours", "or under")
+    say(ax - 1, y, " h left (blank: off)", C.dim, P)
+    y = y + 1
+    f:text(3, y, "Feeds", C.dim, P)
+    local px = button(12, y, (x.feeds or "nothing said") .. " ▸", function()
+      openPick("feeds", i, "What " .. x.name .. " feeds (said on its page)")
+    end)
+    say(px, y, "spent rods: set over, so piling up warns", C.dim, P)
+  end
+
   local function groupDetail(row)
     local gi, g, y = row.gi, row.g, DETAIL
     say(3, y, "Group " .. g.name, C.accent, P)
@@ -681,7 +756,8 @@ function Screen.run(env)
       if t.id == "lscs" then label = label .. " " .. #ed.lscRows()
       elseif t.id == "sources" then label = label .. " " .. #ed.c.sources
       elseif t.id == "switches" then label = label .. " " .. #ed.c.control
-      elseif t.id == "groups" then label = label .. " " .. #ed.c.groups end
+      elseif t.id == "groups" then label = label .. " " .. #ed.c.groups
+      elseif t.id == "supplies" then label = label .. " " .. #ed.c.supplies end
       x = button(x, 2, label, function() S.tab = t.id end, S.tab == t.id)
     end
     if S.tab == "general" then drawGeneral() else drawList() end
@@ -693,6 +769,7 @@ function Screen.run(env)
     elseif S.tab == "lscs" then lscDetail(row)
     elseif S.tab == "sources" then sourceDetail(row)
     elseif S.tab == "groups" then groupDetail(row)
+    elseif S.tab == "supplies" then supplyDetail(row)
     else switchDetail(row) end
     if S.msg then say(3, MSG, S.msg, S.msgOk and C.good or C.bad) end
     x = button(2, FOOT, "SAVE", function() S.view = "review" end, dirty())
@@ -722,6 +799,13 @@ function Screen.run(env)
         local gi = ed.addGroup()
         S.sel.groups = ed.c.groups[gi].name
       end)
+    elseif S.tab == "supplies" then
+      button(x + 2, FOOT, "+ NEW", function()
+        if not ed.snap.me then flash("No ME interface or controller found: put an adapter on one, then RESCAN.", false); return end
+        S.find = { text = "" }
+        S.view = "find"
+        S.focus = { id = "findtext", text = "", apply = function(text) startFind(text) end }
+      end)
     end
     local list = S.tab ~= "general" and rows() or {}
     if #list > listHeight() then
@@ -742,6 +826,7 @@ function Screen.run(env)
       or p.what == "source" and sw.source or p.what == "group" and sw.group
       or p.what == "runs" and (sw.group or (sw.always and "always") or "marks")
       or p.what == "groupLsc" and (ed.c.groups[p.i] or {}).lsc
+      or p.what == "feeds" and (ed.c.supplies[p.i] or {}).feeds
       or p.what == "faultRedstone" and (sw.fault and sw.fault.redstone)
     local top, height = 3, H - 4
     for k = 1, height do
@@ -757,6 +842,7 @@ function Screen.run(env)
           local ok, why
           if p.what == "faultRedstone" then ok, why = ed.setFault(p.i, "redstone", ch.value)
           elseif p.what == "groupLsc" then ok, why = ed.setGroup(p.i, "lsc", ch.value)
+          elseif p.what == "feeds" then ok, why = ed.setSupply(p.i, "feeds", ch.value)
           else ok, why = ed.setSwitch(p.i, p.what, ch.value) end
           report(ok, why)
           S.view = "edit"
@@ -903,6 +989,57 @@ function Screen.run(env)
     end
   end
 
+  local function drawFind()
+    local fd = S.find
+    header("Add a supply: what's it called?")
+    say(3, 3, "Type part of its name, then Enter: every word you type must be in it (\"quad uran\", \"coolant\").", C.dim)
+    say(3, 4, "LUMEN looks through the ME system an item at a time; a big one takes a while. Tap one as soon as you see it.", C.dim)
+    f:text(3, 6, "Name", C.dim)
+    local fx = field(9, 6, 44, "findtext", fd.text, function(text) startFind(text) end)
+    fx = button(fx, 6, "FIND", function()
+      local text = S.focus and S.focus.id == "findtext" and S.focus.text or fd.text
+      S.focus = nil
+      startFind(trim(text))
+    end, true)
+    local sr = fd.search
+    if fd.err then say(3, 8, fd.err, C.bad)
+    elseif sr then
+      local secs = math.max(0.001, uptime() - (fd.began or uptime()))
+      local found = #sr.results
+      local status
+      if sr.done then
+        status = ("Looked through %d items: %s"):format(sr.looked, found == 0 and ("nothing has every word of %q"):format(fd.text)
+          or (found .. " match" .. (found == 1 and "" or "es") .. (found >= supplies.MAX_RESULTS and " (the best " .. found .. ")" or "")))
+        if sr.err then status = status .. " (stopped: " .. sr.err .. ")" end
+      else
+        status = ("Looking... %d items so far (%d a second), %d match%s"):format(sr.looked, math.floor(sr.looked / secs),
+          found, found == 1 and "" or "es")
+        button(fx, 6, "STOP", function() sr:stop() end, false, C.bad)
+      end
+      say(3, 7, status, sr.done and (found == 0 and C.warn or C.text) or C.info)
+      if found > 0 then say(3, 8, "Tap the one to watch:", C.text) end
+      for k, r in ipairs(sr.results) do
+        local y = 8 + k
+        if y > H - 2 then break end
+        f:text(3, y, "●", C.good)
+        f:text(5, y, fit(r.label, 34), C.text)
+        f:text(40, y, fit(r.kind == "fluid" and ("fluid " .. r.name) or ("%s:%d"):format(r.name, r.damage or 0), W - 54), C.dim)
+        f:text(W - 12, y, Gui.rfit(frame.si(r.amount) .. supplies.unit(r.kind), 11), C.text)
+        f:hit(1, y, W, y, function()
+          sr:stop()
+          local at = ed.addSupply(r)
+          S.view, S.tab, S.find = "edit", "supplies", nil
+          S.sel.supplies = ed.c.supplies[at].name
+          flash(("Added %s: set its alerts and what it feeds."):format(ed.c.supplies[at].name))
+        end)
+      end
+    end
+    button(2, FOOT, "BACK", function()
+      if fd.search then fd.search:stop() end
+      S.view, S.find = "edit", nil
+    end)
+  end
+
   local function drawSaved()
     header("Saved " .. env.cfgPath, C.good)
     say(3, 3, "The old file is " .. env.cfgPath .. ".bak.", C.text)
@@ -915,6 +1052,7 @@ function Screen.run(env)
     f = frame.new(W, H)
     if S.view == "pick" then drawPick()
     elseif S.view == "pair" then drawPair()
+    elseif S.view == "find" then drawFind()
     elseif S.view == "review" then drawReview()
     elseif S.view == "saved" then drawSaved()
     else drawEdit() end
@@ -949,7 +1087,9 @@ function Screen.run(env)
     draw()
     while S.running do
       local pairing = S.view == "pair" and S.pair and not S.pair.done
-      local ev = table.pack(event.pullMultiple(pairing and 0.5 or 60, "touch", "key_down", "scroll", "interrupted"))
+      local finding = S.view == "find" and S.find and S.find.search and not S.find.search.done
+      local ev = table.pack(event.pullMultiple(finding and 0 or pairing and 0.5 or 60, "touch", "key_down", "scroll",
+        "interrupted"))
       local name, redraw = ev[1], false
       if name == "touch" then
         -- touch: screenAddress, x, y, button, player
@@ -968,6 +1108,10 @@ function Screen.run(env)
         S.running = false
       end
       if pairing and S.running and not S.pair.done then S.pair:step(uptime()); redraw = true end
+      if finding and S.running and S.find and S.find.search and not S.find.search.done then
+        S.find.search:step(200)
+        redraw = true
+      end
       if S.running and redraw then draw() end
     end
   end

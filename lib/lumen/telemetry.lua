@@ -6,12 +6,14 @@
   t.port
   t:announce()                     send the describe (the program does this once after open)
   t:report(readings, alerts, extra?)   after each reading: refresh the metrics and broadcast a snapshot.
-                                   extra = { total, sources, switches, groups, history (lumen.history), time }
+                                   extra = { total, sources, switches, groups, supplies, history (lumen.history),
+                                   time }
   t:handle(data)                   a packet that arrived on t.port: answers the hub's hello
   t:close()
 
   Each LSC is one `lsc` label: its name on screen. An LSC that can't be read reports lumen_lsc_up 0 and nothing
-  else. Sources have a `source` label, switches a `switch` label, groups a `group` label. Health is the worst
+  else. Sources have a `source` label, switches a `switch` label, groups a `group` label, supplies a `supply`
+  label. Health is the worst
   alert's level.
 ]]
 
@@ -53,6 +55,8 @@ function Telemetry.open(cfg, modem, log)
   t.swTrip   = m:gauge("lumen_switch_trip", "1 while the switch is tripped on its source's heat, else 0")
   t.grNeed   = m:gauge("lumen_group_needed", "How many of the group's switches the fill wants on")
   t.grRun    = m:gauge("lumen_group_running", "How many of the group's switches are on in auto")
+  t.supply   = m:gauge("lumen_supply_amount", "How much of the supply the ME system has (items, or L)")
+  t.supLeft  = m:gauge("lumen_supply_seconds_left", "How long the supply lasts at the last hour's rate", "s")
   t.enc = codec.encoder{ node = cfg.lensNode, role = "lumen", boot = codec.newBoot(),
     interval = cfg.interval, token = cfg.lensToken, version = require("lumen.version") }
   modem.open(port)
@@ -108,6 +112,11 @@ function Telemetry:report(readings, alerts, extra)
     self.swAuto:set(s.mode == "auto" and 1 or 0, l)
     if s.fault then self.swFault:set(s.fault.on and 1 or 0, l) end
     if s.trip then self.swTrip:set(s.trip.on and 1 or 0, l) end
+  end
+  for _, r in ipairs(extra.supplies or {}) do
+    local l = { supply = r.name }
+    if r.ok then self.supply:set(r.amount, l) end
+    if r.lasts then self.supLeft:set(r.lasts, l) end
   end
   for _, g in ipairs(extra.groups or {}) do
     local l = { group = g.name }

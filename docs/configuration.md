@@ -29,6 +29,7 @@ names any setting that's wrong.
 | `sources` | `{}` | Generators to show, [below](#sources) |
 | `control` | `{}` | Switches, [below](#switches) |
 | `groups` | `{}` | Switches that run together, [below](#groups) |
+| `supplies` | `{}` | Fuels and parts to count in the ME system, [below](#supplies) |
 
 ## Sources
 
@@ -111,6 +112,29 @@ groups = {
 | `rotate` | `true` | The members with the least run time (last 24 hours) start first. `false`: the order in `control` |
 | `lsc` | all LSCs | Follow one LSC, by name |
 
+## Supplies
+
+What generators burn or make, counted in an AE2 ME system through an adapter on an ME interface (or controller).
+LUMEN only counts; it never moves anything. `lumen-setup`'s SUPPLIES tab finds them by part of their name. [Setup](setup.md#supplies).
+
+```lua
+supplies = {
+  { name = "Quad rods", item = "gregtech:gt.reactorUraniumQuad", damage = 0, below = 64, hours = 48, feeds = "Quad Uranium" },
+  { name = "Spent rods", item = "IC2:reactorUraniumQuaddepleted", above = 2000 },
+  { name = "Coolant", fluid = "ic2coolant", below = 100000 },
+},
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `name` | | Its name on screen, in alerts and in LENS |
+| `item`, `damage` | `damage = 0` | An item: its registry name (the ME system shows it in `lumen-setup`) and damage. Or: |
+| `fluid` | | A fluid: its name. Counted in L |
+| `below` | | Warn when there's less than this (bad at none) |
+| `above` | | Warn when there's more than this (spent rods piling up) |
+| `hours` | | Warn when it lasts less than this many hours, at the last hour's rate |
+| `feeds` | | What it feeds, said on its page (a group, a switch, a source) |
+
 ## Alerts
 
 Each alert must last a while before it's raised, so a blip doesn't set one off, and stays a minute after the
@@ -132,6 +156,7 @@ problem goes.
 | A switch's fault input signals trouble (or is latched) | bad | 5 s |
 | A switch's fault input can't be read | bad | 15 s |
 | A switch tripped on its reactor's heat (until RESET) | bad | at once |
+| A supply below `below` (bad at none), above `above`, lasting under `hours`, or can't be counted | warn | 1 min |
 | No LSC found | warn | at once |
 
 **Empty within:** for an LSC with switches (its own, or ones following all LSCs), nothing while one is off in
@@ -157,7 +182,7 @@ With `lensPort` set, LUMEN sends LENS a snapshot after every reading, using the 
 | `lumen_full_seconds` / `lumen_empty_seconds` | s | Time until full or empty: the LSC's own figure, which follows the last few seconds |
 | `lumen_in_24h_eu`, `lumen_out_24h_eu` | EU | In and out over the last 24 hours |
 
-Sources have a `source` label, switches a `switch` label and groups a `group` label:
+Sources have a `source` label, switches a `switch` label, groups a `group` label and supplies a `supply` label:
 
 | Metric | Unit | Meaning |
 |---|---|---|
@@ -172,6 +197,8 @@ Sources have a `source` label, switches a `switch` label and groups a `group` la
 | `lumen_switch_trip` | | Switches with a heat trip: 1 while tripped, else 0 |
 | `lumen_group_needed` | | How many of the group's switches the fill wants on |
 | `lumen_group_running` | | How many of them are on in AUTO |
+| `lumen_supply_amount` | | How much the ME system has (items, or L) |
+| `lumen_supply_seconds_left` | s | How long it lasts at the last hour's rate (only while it's going down) |
 
 LUMEN's alerts go to LENS too, and its health is the worst alert's level.
 

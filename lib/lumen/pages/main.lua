@@ -20,6 +20,7 @@
 
 local Gui = require("lumen.gui")
 local power = require("lumen.power")
+local supplies = require("lumen.supplies")
 local frame = require("lumen.frame")
 
 local main = {}
@@ -420,6 +421,34 @@ local function powerSection(f, m, secs, titled, L, x, y, width, actions)
   if actions.timeline then f:button(right - 11, y, "TIMELINE", actions.timeline) end
 end
 
+---------------------------------------------------------------- SUPPLIES
+local SUPPLY_W = 50
+
+local function supplyLayout(n, width)
+  if n == 0 then return 0, 1 end
+  local per = math.max(1, (width + 3) // (SUPPLY_W + 3))
+  return 1 + (n + per - 1) // per, per
+end
+
+local function supplySection(f, m, x, y, width, rows, per, actions)
+  f:text(x, y, "SUPPLIES", C.accent)
+  f:text(x + 10, y, "in the ME system · tap for their day", C.dim)
+  f:hit(x, y, x + width - 1, y + rows - 1, actions.supplies)
+  local cw = (width - (per - 1) * 3) // per
+  for k, r in ipairs(m.supplies) do
+    local row, col = (k - 1) // per, (k - 1) % per
+    if row + 1 >= rows then break end
+    local cx, cy = x + col * (cw + 3), y + 1 + row
+    local level, text = supplies.status(r)
+    local color = level == "bad" and C.bad or level == "warn" and C.warn or C.good
+    f:text(cx, cy, "●", color)
+    f:text(cx + 2, cy, Gui.fit(r.name, cw - 26), C.text)
+    local amount = r.ok and (si(r.amount) .. supplies.unit(r.kind)) or "?"
+    f:text(cx + cw - 24, cy, Gui.rfit(amount, 10), C.text)
+    f:text(cx + cw - 13, cy, Gui.fit(text, 13), level and color or C.dim)
+  end
+end
+
 function main.alerts(f, m, x, y, width, lastRow)
   local list = m.alerts or {}
   f:text(x, y, Gui.fit(("ALERTS (%d)"):format(#list), width), C.accent)
@@ -446,6 +475,9 @@ function main.build(f, m, actions)
   local nAlerts = #(m.alerts or {})
   local alertRows = math.max(2, math.min(nAlerts + 1, math.max(2, f.h // 4)))
   local alertTop = f.h - alertRows
+  local supRows, supPer = supplyLayout(#(m.supplies or {}), width)
+  local supTop = alertTop - supRows - (supRows > 0 and 1 or 0)
+  if supRows > 0 then alertTop = supTop end           -- POWER and the panels fit above the supplies
   local secs, titled = powerSections(m)
   local L = powerLayout(m, secs, titled, width, math.max(2, alertTop - 7), f.h)   -- the LSCs keep at least two rows
   local powerRows = #secs > 0 and L.rows or 0
@@ -477,7 +509,8 @@ function main.build(f, m, actions)
   end
 
   if powerRows > 0 then powerSection(f, m, secs, titled, L, 2, powerTop, width, actions) end
-  main.alerts(f, m, 2, alertTop, width, f.h - 1)
+  if supRows > 0 then supplySection(f, m, 2, supTop, width, supRows, supPer, actions) end
+  main.alerts(f, m, 2, f.h - alertRows, width, f.h - 1)
 end
 
 return main

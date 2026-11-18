@@ -20,6 +20,11 @@
   h:sourceDay(name, time) -> { eu, on, seen, starts, max }   the 24 hours up to `time`
   h:sourceMax(name) -> EU/t | nil        the most it made while running in the hours kept (48)
   h:keepSources(names)                   forget sources no longer there ({ [name] = true })
+  h:supply(name, amount, time)           a supply's stock (lumen.supplies) into the 24 h range (an average per step)
+  h:supplyChart(name) -> { { i, v }... }  its stock per 24 h step, oldest first
+  h:supplyRate(name, time, seconds) -> per hour | nil   its change per hour over the last `seconds` (from the
+                                         samples kept; nil until there's one that old, or 30 min at least)
+  h:keepSupplies(names)                  forget supplies no longer there
   h:state(name, code, time)              a switch's state now ("on", "hand", "off", "handoff", "fault", "trip",
                                          "err", or "gone" while LUMEN isn't running): kept as changes, 7 days
   h:segments(name, from, to) -> { { from, to, state }... }   its states over [from, to], oldest first
@@ -49,12 +54,13 @@ local H = {}
 H.__index = H
 
 function history.new(saved)
-  local self = setmetatable({ lsc = {}, hours = {}, src = {}, running = {}, states = {} }, H)
+  local self = setmetatable({ lsc = {}, hours = {}, src = {}, running = {}, states = {}, sup = {} }, H)
   if type(saved) == "table" then
     self.lsc = type(saved.lsc) == "table" and saved.lsc or {}
     self.hours = type(saved.hours) == "table" and saved.hours or {}
     self.src = type(saved.src) == "table" and saved.src or {}
     self.states = type(saved.states) == "table" and saved.states or {}
+    self.sup = type(saved.sup) == "table" and saved.sup or {}
   end
   -- History from before in and out were kept: unknown for the samples already there. And one saved after a
   -- sample begun by 0.2.1 crashed its finishing (a sample kept, its in and out not): lined up again.
@@ -228,6 +234,50 @@ function H:keepSources(names)
   end
 end
 
+function H:supply(name, amount, time)
+  local step = history.RANGES[3].step
+  local s = self.sup[name]
+  if not s then s = { i = {}, v = {} }; self.sup[name] = s end
+  local i = math.floor(time / step)
+  local cur = s.cur
+  if cur and cur.i ~= i then
+    s.i[#s.i + 1], s.v[#s.v + 1] = cur.i, cur.v / cur.n
+    if #s.i > history.SAMPLES then table.remove(s.i, 1); table.remove(s.v, 1) end
+    cur = nil
+  end
+  if not cur then cur = { i = i, n = 0, v = 0 }; s.cur = cur end
+  cur.n, cur.v = cur.n + 1, cur.v + amount
+  s.last, s.lastAt = amount, time
+end
+
+function H:supplyChart(name)
+  local s = self.sup[name]
+  if not s then return {} end
+  local out = {}
+  for j, i in ipairs(s.i) do out[#out + 1] = { i = i, v = s.v[j] } end
+  if s.cur then out[#out + 1] = { i = s.cur.i, v = s.cur.v / s.cur.n } end
+  return out
+end
+
+function H:supplyRate(name, time, seconds)
+  local s = self.sup[name]
+  if not (s and s.last) then return nil end
+  local step = history.RANGES[3].step
+  local want = math.floor((time - seconds) / step)
+  for j = #s.i, 1, -1 do
+    if s.i[j] <= want then
+      local dt = time - (s.i[j] + 0.5) * step
+      if dt < 1800 then return nil end
+      return (s.last - s.v[j]) / dt * 3600
+    end
+  end
+  return nil
+end
+
+function H:keepSupplies(names)
+  for name in pairs(self.sup) do if not names[name] then self.sup[name] = nil end end
+end
+
 function H:state(name, code, time)
   local list = self.states[name]
   if not list then list = {}; self.states[name] = list end
@@ -303,6 +353,6 @@ function H:keep(addresses)
   end
 end
 
-function H:save() return { lsc = self.lsc, hours = self.hours, src = self.src, states = self.states } end
+function H:save() return { lsc = self.lsc, hours = self.hours, src = self.src, states = self.states, sup = self.sup } end
 
 return history
