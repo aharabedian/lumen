@@ -19,11 +19,11 @@ path, forget cached `lumen.*` modules, and say "run lumen-update" if they're mis
 | `lumen.app` | The program's state: every `interval`, reads LSCs and sources, runs the switches, history, alerts, beep, redraw, LENS; saves state every 5 minutes and on exit |
 | `lumen.power` | Finds LSCs (`gt_machine` whose `getName()` is `multimachine.supercapacitor`, checked once per address) and reads them into readings; totals; durations |
 | `lumen.sources` | GT generators named in `sources`, and IC2 reactors (`reactor`, `reactor_chamber`) found by themselves. Read only |
-| `lumen.control` | Switches: decides on or off from the fill (marks, `minSwitch`, holding when unreadable), sets a redstone output or a GT machine's work, reads it back; manual modes; fault inputs (read a redstone input, stop, latch, RESET). The only module that changes the game, and only what `control` names |
+| `lumen.control` | Switches: decides on or off from the fill (marks, `minSwitch`, holding when unreadable), sets a redstone output or a GT machine's work, reads it back; manual modes; fault inputs (read a redstone input, stop, latch, RESET). The only module that changes the game, and only what `control` names; heat trips (a source reactor's heat or how fast it climbs: off and latched until RESET, raised 5 points after a RESET while still hot); groups (a ladder of steps sets how many members run; the least run time starts first; manual, faulted and tripped members are left out) |
 | `lumen.history` | Fill at three ranges (30 s, 3 min and 9 min samples, 160 each) and hourly totals for 48 hours: EU in and out, peak draw, lowest fill, switches' time on; the net over a window |
-| `lumen.state` | `/home/lumen-state.cfg`: manual modes and history between runs; a real-time clock from a file's modification time |
+| `lumen.state` | `/home/lumen-state.cfg`: manual modes, latched faults, heat trips, group steps, TILES or ROWS, and history between runs; a real-time clock from a file's modification time |
 | `lumen.alerts` | Alerts from readings, sources and switches (pure), with a hold each; the drain judgement (`alerts.drain`); a tracker that raises after the hold and clears a minute after; health |
-| `lumen.screen` | Draws a model: the header, then `lumen.pages.main` (panels, POWER: a row per switch with its source's state, then unswitched sources; alerts) or `lumen.pages.detail` (one LSC). Sends the GPU only changed rows or segments |
+| `lumen.screen` | Draws a model: the header, then `lumen.pages.main` (panels; POWER: group lines, then each switch with its source as tiles or rows; alerts), `lumen.pages.detail` (one LSC) or `lumen.pages.group` (a group's ladder and order). Sends the GPU only changed rows or segments |
 | `lumen.frame` | A frame of row segments and touch targets, and widgets: buttons, bars, charts; `paint` sends the GPU only what changed (a row with overlapping segments, whole) |
 | `lumen.config` | `/home/lumen.cfg`: defaults and checks |
 | `lumen.telemetry` | Optional reporting to LENS (lens/1) |
@@ -32,9 +32,10 @@ path, forget cached `lumen.*` modules, and say "run lumen-update" if they're mis
 | `lumen.lens.metrics`, `lumen.lens.codec` | **Vendored from LENS**, byte for byte: never edit here. Change LENS, then `tools/sync-lens.sh` (a test compares them with `../lens`) |
 | `lumen.discover` | Component reports; reading every read-only method (named get/is/has, documented as taking no arguments); the reactor probe (reactor slots, transposer sides and stacks, timed) and release |
 | `lumen.lsc` | Reads an LSC's `getSensorInformation` lines: stored, capacity, fill %, averages (5 s / 5 min / 1 h), time to full/empty, maintenance, capacitor counts |
-| `lumen.setup.screen` | `lumen-setup`'s touchscreen editor: tabs, the pick view, review before SAVE. Draws with `lumen.frame` |
-| `lumen.setup.editor` | The config as the editor changes it (pure): rows per tab, switches (+ NEW, COPY to the next block and name, DELETE), checks, changes, warnings |
+| `lumen.setup.screen` | `lumen-setup`'s touchscreen editor: tabs (switches with ▲ ▼, groups), the pick view, PAIR, review before SAVE. Draws with `lumen.frame` |
+| `lumen.setup.editor` | The config as the editor changes it (pure): rows per tab, switches (+ NEW, COPY to the next block and name, DELETE, move), groups and their steps, checks, changes, warnings |
 | `lumen.setup.scan` | What's attached, for the editor: LSCs, reactors, GT machines, redstone components; a block's redstone inputs (READ). Read only |
+| `lumen.setup.pair` | PAIR: every redstone switch off, then each on alone until a reactor starts (15 s at most), outputs back as they were at the end or on STOP. The only part of setup that switches anything |
 | `lumen.setup.files` | Loading the old `lumen.cfg`, `.shrc`'s lumen line, filling defaults and checking before writing, saving with `.bak`: shared by both modes |
 | `lumen.setup.steps`, `.render`, `.input` | The text setup's questions, the commented `lumen.cfg` both modes write, and terminal prompts |
 | `lumen.version` | The release string; `lumen-update` keeps its own copy (a test checks) |

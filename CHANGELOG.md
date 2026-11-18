@@ -6,6 +6,24 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Reactor tiles**: POWER shows each switch and its source as a tile (TILES or ROWS, kept across restarts): what
+  it runs and makes, its heat on a bar that ends at its trip mark, why, RESET and AUTO / ON / OFF. A tile's title
+  turns red for a fault, a trip, an error or a reactor still running while switched off. Twelve reactors fit a
+  7 x 3 wall at 160 x 33.
+- **Heat trips** (`heatTrip`, `heatRise` on a switch): off and latched (across restarts) when its reactor reaches a
+  % of its max heat, or climbs too fast; RESET while still hot lets it run to cool down, tripping 5 points higher.
+  A bad alert; LENS gets `lumen_switch_trip`.
+- **Groups** (`groups`, and `group` on a switch): a ladder of steps runs as many members as the fill needs; the
+  least run time starts first (`rotate`), and a member that's faulted, tripped or set by hand is skipped. A line
+  per group on the main screen with its members under it ("Not in a group" after); tap it for its page (the
+  ladder and who starts next). LENS gets
+  `lumen_group_needed` and `lumen_group_running`.
+- **Always-on switches** (`always = true`): no marks, ON / OFF on the screen; faults and heat trips still stop it
+  (a breeder that should never stop). `lumen-setup`'s **Runs ▸** picks by fill, always, or a group.
+- **`lumen-setup`: PAIR** runs each redstone switch alone, after explaining and a START, to find which reactor it
+  runs (crossed wiring, blocks that start nothing, and switches with a fault on are said), then puts every output
+  back; APPLY sets the sources. **▲ ▼** order the switches (the order on the main screen), a **GROUPS** tab, and
+  heat trip fields on each switch.
 - **`lumen-setup` on the touchscreen**: tabs for LSCs, sources, switches and general settings (alerts, LENS,
   start on boot); tap a row to change it. For a row of reactors, **COPY** makes the next switch from the one
   selected (the next name and the next free redstone block, the same side, marks and fault input); long
@@ -24,6 +42,7 @@ versions follow [Semantic Versioning](https://semver.org/).
   reactor on whatever its redstone says, even after the computer is gone; this hands it back to its redstone.
 
 ### Changed
+- `lumen-setup`'s switch panel: READ sits with COPY and DELETE and says what it read on the message line.
 - **POWER shows a switch and its source as one row**: the switch's state, then what the reactor or generator is
   doing (running, EU/t, heat). Off for 10 s while the source still makes power shows **STILL RUNNING** in red.
   Twelve reactors on switches take twelve rows instead of twenty-four, and POWER may take up to a third of the

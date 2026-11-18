@@ -50,11 +50,15 @@ LSC or generator reports, to check the adapters are connected.
   - time to full or empty, as the LSC itself works it out
   - the net over 5 minutes and over 1 hour, passive loss, and maintenance status
   - **a fill history chart** in whatever rows are left (one sample every 30 s, the last 80 minutes)
-- **POWER** (with sources or switches): a row per switch: ON, OFF or **FAULT**; what its `source` is doing (running
-  or idle, EU/t, a reactor's heat); why and for how long; **AUTO / ON / OFF**, with **RESET** for a latched fault.
-  When the switch has been off for 10 s and its source still makes power (wired wrong?), the row says **STILL
-  RUNNING** in red. Sources no switch names get a row of their own (running or idle, EU/t, heat, recipe progress,
-  maintenance problems).
+- **POWER** (with sources or switches): each switch with its `source`, as **TILES** or **ROWS** (tap to choose;
+  kept across restarts; at first, tiles when there are 4 or more and they all fit). With [groups](#groups), in
+  sections: each group's line (how many run and are needed; tap it for its page) with its members under it, then
+  **Not in a group** (switches always on or on their own marks, and sources with no switch). Each says ON, OFF, **FAULT** or **TRIP**; what its source
+  is doing (running or idle, EU/t); a reactor's heat, on a bar that ends at its [heat trip](#heat-trips); why and for
+  how long; **AUTO / ON / OFF** (**ON / OFF** for one that's always on), with **RESET** for a latched fault or a
+  trip. A tile's title turns red for
+  trouble, readable across the room. When the switch has been off for 10 s and its source still makes power (wired
+  wrong?), it says **STILL RUNNING** in red. Sources no switch names get a tile or row of their own.
 - **Alerts:** bad ones first, each with how long it has lasted. They clear themselves a minute after the
   problem goes away. A new bad alert beeps once.
 
@@ -62,7 +66,12 @@ LSC or generator reports, to check the adapters are connected.
 
 ![A vacuum reactor on a switch](images/lumen-control.png)
 
-![Twelve reactors on a wall of screens 7 wide, 3 tall (160 × 33)](images/lumen-wall.png)
+![Twelve reactors as tiles on a wall of screens 7 wide, 3 tall (160 × 33)](images/lumen-tiles-wall.png)
+
+**Tap a group** for its page: the **LADDER** (the fill against each step's marks, and how many it needs now) and
+the **ORDER** (who starts next, each member's run time over 24 hours, and why one is left out).
+
+![A group's page](images/lumen-group.png)
 
 **Tap an LSC** (or All LSCs) for its page: fill history over **80 MIN**, **8 H** or **24 H**, its averages over 5 s,
 5 min and 1 h, time to full or empty, passive loss, maintenance, wireless, capacitors, and **the last 24 hours**
@@ -83,25 +92,42 @@ On a tier 2 screen, panels keep the essentials:
 |---|---|
 | **LSCS** | Name it |
 | **SOURCES** | Show a GT machine or not; name it (reactors always show); warn when it stops (**always on**) |
-| **SWITCHES** | Change it: name, marks, **REDSTONE** (block, side, **SIGNAL = STOP**) or **GT MACHINE**, the LSC it follows, its source, its [fault input](#fault-inputs). **+ NEW**, **COPY**, **DELETE** |
+| **SWITCHES** | Change it: name, **Runs** (by fill, with its marks; always; or a group), **REDSTONE** (block, side, **SIGNAL = STOP**) or **GT MACHINE**, the LSC it follows, its source, its [heat trip](#heat-trips), its [fault input](#fault-inputs). **▲ ▼** move it (the order on the main screen), **READ**, **+ NEW**, **COPY**, **DELETE**, **PAIR** |
+| **GROUPS** | Change it: name, **Rotate**, the LSC it follows, its steps (**+ STEP**, **REMOVE**). **+ NEW**, **ADD EVERY SWITCH**, **DELETE** |
 | **GENERAL** | Alert levels, beep, LENS, start on boot; below, the warnings |
 
 Tap a field to type (Enter keeps it, Esc cancels). A choice ending in ▸ opens a list, saying who already uses
 each block. **RESCAN** looks for components again; **TEXT SETUP** switches to the questions.
 
 **Many reactors:** set one switch up, then **COPY** it for each of the others: the copy gets the next name
-(MOX 1, MOX 2...) and the next redstone block no switch uses, with the same side, marks and fault input (moved
-to the new block when it read the old one's). Then check each one's block and pick its source. To tell blocks
-apart, put a lever against one (or trip what it watches) and tap **READ**: it shows which sides of the
-switch's blocks have a signal coming in. An Analyzer shows a block's address too.
+(MOX 1, MOX 2...) and the next redstone block no switch uses, with the same side, heat trip and fault input
+(moved to the new block when it read the old one's). Make a group on **GROUPS** and **ADD EVERY SWITCH**. Then
+tap **PAIR** to find each switch's reactor:
+
+1. It explains what it will do, and waits for **START**.
+2. Every redstone switch's output goes off, then each switch turns on alone, for up to 15 s, while LUMEN watches
+   every reactor. The one that starts making power is its source.
+3. It says which it found, and what didn't work: a block that started nothing (check its wiring), more than one
+   reactor starting, a switch skipped because its fault input says trouble. A reactor already running at the
+   start (something else runs it) is never paired.
+4. Every output goes back as it was. **STOP** does that at once. **APPLY** sets the sources; **SAVE** writes them.
+
+Each reactor runs for a few seconds, so have its coolant (and SFM) ready. To tell blocks apart by hand, put a
+lever against one (or trip what it watches) and tap **READ**: it says which sides of the switch's blocks have a
+signal coming in. An Analyzer shows a block's address too.
+
+![PAIR: twelve switches, two crossed, one block running nothing](images/lumen-setup-pair.png)
 
 **SAVE** lists what changes and warns before writing: a component not found, two switches on one output, a
-fault read on a side a switch drives, a source or LSC a switch names that isn't there.
+fault read on a side a switch drives, a source or LSC a switch names that isn't there, a heat trip without a
+source, a group with no members or with steps that run more than it has.
 
 ## Switches
 
 A switch turns generators **on when the LSCs fall below one mark and off above another** (30% and 90%, say),
-and leaves them alone in between so they don't flicker. It's either:
+and leaves them alone in between so they don't flicker. Or it's **always on** (`always = true`, for a breeder
+that should never stop): no marks, **ON / OFF** on the screen, and faults and [heat trips](#heat-trips) still
+stop it. Or a [group](#groups) runs it. It's either:
 
 - **A redstone signal** from a Redstone I/O block (or a redstone card), on one side. Wire it to whatever runs
   the generators: an SFM setup that runs a vacuum reactor, a reactor's redstone port, a machine's enable.
@@ -134,3 +160,35 @@ LUMEN only reads the line, every `interval`. What it runs keeps its own safety: 
 output when its computer stops (seen in game), so if LUMEN isn't running, nothing it switched changes.
 
 ![A latched fault](images/lumen-fault.png)
+
+### Heat trips
+
+A switch whose `source` is an IC2 reactor can **trip** on its heat: `heatTrip` is a % of the reactor's max heat,
+`heatRise` how many % a minute it may climb (judged over at least 30 s). Set them per reactor: MOX and breeder
+designs run hot on purpose.
+
+- A trip shows **TRIP** in red, raises a bad alert at once, and switches off whatever the mode. It stays tripped,
+  across restarts, until you tap **RESET**.
+- An IC2 reactor's heat doesn't change while it's off, and it only cools while it runs. So a **RESET** while it's
+  still at or over `heatTrip` lets it run, and trips 5 points higher until it cools below `heatTrip`.
+- A reactor that can't be read trips nothing (its own alert says so).
+
+## Groups
+
+A **group** runs several switches together (a hall of reactors, say), as many as the fill needs. Its **steps**
+each run some more below a mark and let them go above another, like a switch's marks:
+
+| Step | On below | Back above | Runs |
+|---|---|---|---|
+| 1 | 90% | 95% | 4 |
+| 2 | 75% | 85% | 6 more (10) |
+| 3 | 50% | 65% | 2 more (12) |
+
+- **Who runs:** with `rotate` (the default), the members off with the least run time over the last 24 hours start
+  first, and the members on with the most stop first, which spreads fuel use and wear. Without it, the order in
+  `control`.
+- **Left out:** a member set **ON** or **OFF** by hand (until **AUTO**), faulted, tripped, or that can't be switched;
+  the next in line takes its place. Each member still waits a minute between its own switches.
+- It follows all the LSCs together, or one (`lsc`), and holds while it can't read them. Which steps are on is kept
+  across restarts; without that, what's running says.
+- A member standing by is *standby* for the drain alerts, as a switch off in AUTO is.

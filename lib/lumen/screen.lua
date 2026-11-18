@@ -7,15 +7,18 @@
 
   model = {
     now, version, health = "ok" | "warn" | "bad", missingConfig = bool, lens = "port 4243 as lumen" | nil,
-    page = "main" | "lsc",
+    page = "main" | "lsc" | "group",
     total = reading | nil,           power.total: shown first, full width, when there are several LSCs
     lscs = { reading... },           lumen.power readings, each with history = { fill (0..1)... }, oldest first,
                                      and drainHow (lumen.alerts.drain's how: "standby"...)
-    switches = lumen.control c.list, sources = lumen.sources list,
+    switches = lumen.control c.list, sources = lumen.sources list, groups = lumen.control c.groups,
+    hours = { [switch] = seconds on in the last 24 h }, view = "tiles" | "rows" | nil,
     alerts = { { id, level, text, since }... },
     detail = (page "lsc") see lumen.pages.detail,
+    group = (page "group") the group shown (lumen.pages.group),
   }
-  actions = { quit(), open(address), back(), range(k), mode(switch name, "auto" | "on" | "off") }
+  actions = { quit(), open(address), back(), range(k), mode(switch name, "auto" | "on" | "off"), reset(switch name),
+    group(name) (its page), view("tiles" | "rows") }
 
   A header (health, the total's fill and net, QUIT), then the page: lumen.pages.main or lumen.pages.detail.
 ]]
@@ -24,6 +27,7 @@ local Gui = require("lumen.gui")
 local frame = require("lumen.frame")
 local mainPage = require("lumen.pages.main")
 local detailPage = require("lumen.pages.detail")
+local groupPage = require("lumen.pages.group")
 
 local screen = {}
 
@@ -67,9 +71,14 @@ function S:build(m, actions)
   local f = frame.new(self.w, self.h)
   f.now = m.now
   header(f, m, actions)
-  if m.page == "lsc" and m.detail then detailPage.build(f, m, actions) else mainPage.build(f, m, actions) end
+  if m.page == "lsc" and m.detail then detailPage.build(f, m, actions)
+  elseif m.page == "group" and m.group then groupPage.build(f, m, actions)
+  else mainPage.build(f, m, actions) end
   local foot = m.missingConfig and "No /home/lumen.cfg: defaults (see config/lumen.example.cfg)."
-    or (m.page == "lsc" and "Tap a range for a longer history." or "Tap an LSC for its history and the last 24 hours.")
+    or (m.page == "lsc" and "Tap a range for a longer history.")
+    or (m.page == "group" and "Change the steps in lumen-setup: GROUPS.")
+    or (#(m.groups or {}) > 0 and "Tap an LSC for its history; a group for its ladder and order.")
+    or "Tap an LSC for its history and the last 24 hours."
   f:text(2, self.h, Gui.fit(foot, self.w - 2), C.dim)
   return f
 end

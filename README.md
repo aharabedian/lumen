@@ -19,7 +19,7 @@ machine); and can report to LENS.
 | In | Out |
 |---|---|
 | Reading LSCs and other GT energy storage: stored EU, input, output, time to full or empty | **Swapping reactor parts.** OpenComputers can't swap them atomically or fast enough; Steve's Factory Manager does it, and LUMEN switches it on and off and watches its fault signal |
-| Simple, safe control: switching generators on and off with the LSC's fill | Anything that needs reactions faster than a computer polling every few seconds |
+| Simple, safe control: switching generators on and off with the LSC's fill, alone or in groups that run as many as the fill needs; tripping a reactor off when it runs too hot | Anything that needs reactions faster than a computer polling every few seconds |
 | Alerts (low power, draining fast), and reporting to LENS | |
 
 ## Install
@@ -35,8 +35,8 @@ Then **`lumen-setup`**, and run **`lumen`**. What you need, switches and the scr
 
 | Program | Does |
 |---|---|
-| `lumen` | The power screen: every LSC's fill, flows, time to full or empty, history and the last 24 hours; generators and reactors; switches; alerts. Optionally reports to LENS |
-| `lumen-setup` | A touchscreen editor (or questions on the terminal) for your LSCs, generators, switches, alerts and LENS; writes `/home/lumen.cfg` |
+| `lumen` | The power screen: every LSC's fill, flows, time to full or empty, history and the last 24 hours; generators and reactors as tiles or rows, with their switches and groups; alerts. Optionally reports to LENS |
+| `lumen-setup` | A touchscreen editor (or questions on the terminal) for your LSCs, generators, switches, groups, alerts and LENS, with PAIR to find which reactor each switch runs; writes `/home/lumen.cfg` |
 | `lumen-discover` | Lists components and their methods; `--read` shows what an LSC (or any GT machine) reports; `--probe` reads IC2 reactors and transposers |
 | `lumen-update` | Installs and updates LUMEN |
 

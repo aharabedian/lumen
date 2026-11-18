@@ -6,12 +6,13 @@
   t.port
   t:announce()                     send the describe (the program does this once after open)
   t:report(readings, alerts, extra?)   after each reading: refresh the metrics and broadcast a snapshot.
-                                   extra = { total, sources, switches, history (lumen.history), time }
+                                   extra = { total, sources, switches, groups, history (lumen.history), time }
   t:handle(data)                   a packet that arrived on t.port: answers the hub's hello
   t:close()
 
   Each LSC is one `lsc` label: its name on screen. An LSC that can't be read reports lumen_lsc_up 0 and nothing
-  else. Sources have a `source` label, switches a `switch` label. Health is the worst alert's level.
+  else. Sources have a `source` label, switches a `switch` label, groups a `group` label. Health is the worst
+  alert's level.
 ]]
 
 local computer = require("computer")
@@ -48,6 +49,9 @@ function Telemetry.open(cfg, modem, log)
   t.swOn     = m:gauge("lumen_switch_on", "1 while the switch has its generators on, else 0")
   t.swAuto   = m:gauge("lumen_switch_auto", "1 while the switch follows the fill, 0 when set by hand")
   t.swFault  = m:gauge("lumen_switch_fault", "1 while the switch's fault input signals trouble (or is latched), else 0")
+  t.swTrip   = m:gauge("lumen_switch_trip", "1 while the switch is tripped on its source's heat, else 0")
+  t.grNeed   = m:gauge("lumen_group_needed", "How many of the group's switches the fill wants on")
+  t.grRun    = m:gauge("lumen_group_running", "How many of the group's switches are on in auto")
   t.enc = codec.encoder{ node = cfg.lensNode, role = "lumen", boot = codec.newBoot(),
     interval = cfg.interval, token = cfg.lensToken, version = require("lumen.version") }
   modem.open(port)
@@ -101,6 +105,12 @@ function Telemetry:report(readings, alerts, extra)
     if s.on ~= nil then self.swOn:set(s.on and 1 or 0, l) end
     self.swAuto:set(s.mode == "auto" and 1 or 0, l)
     if s.fault then self.swFault:set(s.fault.on and 1 or 0, l) end
+    if s.trip then self.swTrip:set(s.trip.on and 1 or 0, l) end
+  end
+  for _, g in ipairs(extra.groups or {}) do
+    local l = { group = g.name }
+    if g.need then self.grNeed:set(g.need, l) end
+    self.grRun:set(g.running or 0, l)
   end
   for _, a in ipairs(alerts) do m:alert(a.id, a.level, a.text) end
   self:broadcast(self.enc:snapshot(m:snapshot()))

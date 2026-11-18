@@ -68,7 +68,7 @@ check(s.mode == "on" and s.on == true and rs.out[2] == 15 and s.since == 610, "O
 c:update({ main }, at(0.99), 700)
 check(s.on == true and s.why:find("ON", 1, true), "by hand, the fill doesn't matter")
 check(c:modes()["Vac nuke"] == "on", "manual modes are kept")
-local c2 = control.new(component, cfg, { ["Vac nuke"] = "on" })
+local c2 = control.new(component, cfg, { modes = { ["Vac nuke"] = "on" } })
 check(c2.list[1].mode == "on", "and come back after a restart")
 c:setMode("Vac nuke", "auto", 710)
 check(s.on == false and c:modes()["Vac nuke"] == nil, "AUTO: follows the fill again, at once")
@@ -149,7 +149,7 @@ flt.inp[1] = 0
 c:update({ main }, at(0.2), 20)
 check(s.fault.on and s.fault.latched and s.on == false, "latch: the signal went, the fault stays")
 check(c:faults()["Reactor 1"] == true, "a latched fault is kept across restarts")
-local c3 = control.new(component, cfg, nil, { ["Reactor 1"] = true })
+local c3 = control.new(component, cfg, { faults = { ["Reactor 1"] = true } })
 c3:update({ main }, at(0.2), 0)
 check(c3.list[1].fault.on and c3.list[1].fault.latched and c3.list[1].fault.since == 0, "and comes back latched, counted from the restart")
 flt.inp[1] = 15

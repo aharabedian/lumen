@@ -1,7 +1,7 @@
 --[[ lumen.setup.render: lumen.cfg as Lua source, with a comment on each setting.
 
   cfg(c) -> text     c: the config as it should be saved. Settings in a fixed order with comments, then names,
-                     sources and control; keys it doesn't know are kept at the end.
+                     sources, groups and control; keys it doesn't know are kept at the end.
   lua(v) -> text     any plain value as Lua source, keys in a stable order
 ]]
 
@@ -9,8 +9,8 @@ local VERSION = require("lumen.version")
 
 local R = {}
 
-local ORDER = { "name", "address", "redstone", "machine", "side", "invert", "strength", "onBelow", "offAbove", "lsc",
-  "source", "alwaysOn", "minSwitch", "fault", "latch", "stop" }
+local ORDER = { "name", "address", "redstone", "machine", "side", "invert", "strength", "group", "always", "onBelow", "offAbove",
+  "run", "lsc", "source", "heatTrip", "heatRise", "alwaysOn", "minSwitch", "fault", "latch", "stop", "rotate", "steps" }
 local RANK = {}
 for i, k in ipairs(ORDER) do RANK[k] = i end
 
@@ -72,7 +72,7 @@ function R.cfg(c)
     "-- hand are kept when it rewrites this file (comments aren't). Every option: docs/configuration.md",
     "return {",
   }
-  local known = { names = true, sources = true, control = true, missing = true }
+  local known = { names = true, sources = true, groups = true, control = true, missing = true }
   for _, s in ipairs(SETTINGS) do
     known[s[1]] = true
     local v = c[s[1]]
@@ -91,7 +91,8 @@ function R.cfg(c)
     L[#L + 1] = "  },"
   end
   list(L, "sources", c.sources or {}, "power sources to show (GT generators; IC2 reactors show by themselves)")
-  list(L, "control", c.control or {}, "switches: generators on below onBelow %, off above offAbove %")
+  list(L, "groups", c.groups or {}, "groups: switches that run together; each step runs `run` more below onBelow %")
+  list(L, "control", c.control or {}, "switches: generators on below onBelow %, off above offAbove % (or by their group)")
 
   local extra = {}
   for k in pairs(c) do if not known[k] then extra[#extra + 1] = k end end
