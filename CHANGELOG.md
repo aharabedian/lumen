@@ -19,8 +19,8 @@ versions follow [Semantic Versioning](https://semver.org/).
   A bad alert; LENS gets `lumen_switch_trip`.
 - **Groups** (`groups`, and `group` on a switch): a ladder of steps runs as many members as the fill needs; the
   least run time starts first (`rotate`), and a member that's faulted, tripped or set by hand is skipped. A line
-  per group on the main screen with its members under it ("Not in a group" after); tap it for its page (the
-  ladder and who starts next). LENS gets
+  per group on the main screen with its members under it ("Not in a group" after); tap it for its page (its
+  steps, the fill, why that many are needed, and who starts next and stops first). LENS gets
   `lumen_group_needed` and `lumen_group_running`.
 - **Always-on switches** (`always = true`): no marks, ON / OFF on the screen; faults and heat trips still stop it
   (a breeder that should never stop). `lumen-setup`'s **Runs ▸** picks by fill, always, or a group.

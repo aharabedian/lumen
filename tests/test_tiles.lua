@@ -155,7 +155,7 @@ run(M.time + 20, function(n)
   if n == 2 then return tapAt("Nuclear", 3) end
   if n == 4 then
     seen.page = M.find("◀ BACK", 3) and M.find("LADDER", 3) and M.find("ORDER", 3)
-      and M.find("below 75%: 10 on", 3) and M.find("now: 10 needed", 3)
+      and M.find("72.0% now: steps 1 and 2 are on, so 10 are needed", 3)
     seen.order = M.find("RUN TIME, 24 H", 3) and M.find("MOX 12", 3)
     H.screen("lumen-group")
   end
@@ -194,5 +194,49 @@ run(M.time + 10)
 H.screen("lumen-tiles-tier2")
 check(M.oob == 0 and M.find("POWER", 3) and M.find("more tiles", 3), "tier 2: as many tiles as fit, and how many more")
 M.resize(160, 50)
+
+---------------------------------------------------------------- the group page, from a model
+-- Four reactors with long names; steps 1 and 2 share the 75% mark; the fill (71.8%) just under it.
+local frame = require("lumen.frame")
+local groupPage = require("lumen.pages.group")
+local function text(f)
+  local rows = {}
+  for y = 1, f.h do
+    local cells = {}
+    for x = 1, f.w do cells[x] = " " end
+    for _, seg in ipairs(f.rows[y].segs) do
+      local i = 0
+      for _, cp in utf8.codes(seg[2]) do
+        if seg[1] + i <= f.w then cells[seg[1] + i] = utf8.char(cp) end
+        i = i + 1
+      end
+    end
+    rows[y] = table.concat(cells)
+  end
+  return table.concat(rows, "\n")
+end
+local function member(name, on, hours)
+  return { name = name, on = on, mode = "auto", index = tonumber(name:sub(-1)), cfg = {}, hrs = hours * 3600 }
+end
+local ms = { member("Reactor N-1", true, 4 + 55 / 60), member("Reactor N-2", false, 7 + 49 / 60),
+  member("Reactor N-3", false, 8 + 7 / 60), member("Reactor N-4", true, 8 + 44 / 60) }
+local hours = {}
+for _, s in ipairs(ms) do hours[s.name] = s.hrs end
+local g = { name = "Quad Uranium", rotate = true, fill = 0.718, need = 2, running = 2, members = ms, order = ms, hours = hours,
+  steps = { { onBelow = 75, offAbove = 90, run = 1, active = true }, { onBelow = 75, offAbove = 90, run = 1, active = true },
+    { onBelow = 70, offAbove = 90, run = 2, active = false } } }
+for _, size in ipairs({ { 160, 33 }, { 80, 25 } }) do
+  local f = frame.new(size[1], size[2])
+  groupPage.build(f, { group = g }, { back = function() end })
+  local t = text(f)
+  local tag = (" at %d x %d"):format(size[1], size[2])
+  check(t:find("Reactor N-1", 1, true) and t:find("Reactor N-4", 1, true), "every member's whole name" .. tag)
+  check(t:find("1     75%       90%        1", 1, true) and t:find("2     75%       90%        2", 1, true)
+    and t:find("3     70%       90%        4", 1, true), "each step: its marks and how many run in all, none hidden" .. tag)
+  check(t:find("71.8% now: steps 1 and 2 are on, so 2 are needed", 1, true), "the fill now and why that many" .. tag)
+  check(t:find("Steps 1 and 2 both start below 75%", 1, true), "steps sharing a mark say so" .. tag)
+  check(t:find("next to start", 1, true) and t:find("first to stop", 1, true) and t:find("doesn't swap", 1, true),
+    "who starts next and stops first, and that running ones aren't swapped" .. tag)
+end
 
 H.done()

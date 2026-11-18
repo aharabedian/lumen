@@ -69,8 +69,10 @@ LSC or generator reports, to check the adapters are connected.
 
 ![Twelve reactors as tiles on a wall of screens 7 wide, 3 tall (160 × 33)](images/lumen-tiles-wall.png)
 
-**Tap a group** for its page: the **LADDER** (the fill against each step's marks, and how many it needs now) and
-the **ORDER** (who starts next, each member's run time over 24 hours, and why one is left out).
+**Tap a group** for its page: the **LADDER** (the fill on a bar with each step's mark under it; each step's marks,
+how many run in all and whether it's on; and why that many are needed now) and the **ORDER** (the members by run
+time over 24 hours: who starts next and who stops first, and why one is left out). It only acts when the number
+needed changes; it doesn't swap running reactors to even out their run time.
 
 ![A group's page](images/lumen-group.png)
 
