@@ -44,12 +44,43 @@ check(rs[1].ok and rs[1].amount == 312 and rs[1].kind == "item" and rs[1].label 
 check(rs[3].ok and rs[3].amount == 2100000 and rs[3].kind == "fluid", "a fluid: its L")
 check(rs[4].ok and rs[4].amount == 0, "none in the ME system: 0, not an error")
 check(me.calls == 4, "one lookup each")
-local found = supplies.search(component, "Quad Fuel Rod (Uranium)")
-check(#found == 1 and found[1].name == ROD and found[1].damage == 0 and found[1].amount == 312,
-  "search: an item by its whole name (AE2 matches it exactly)")
-found = supplies.search(component, "cool")
-check(#found == 1 and found[1].kind == "fluid" and found[1].name == "ic2coolant", "a fluid by part of its name")
-check(#supplies.search(component, "Quad Fuel") == 0, "part of an item's name finds nothing (AE2 matches whole names)")
+-- Search: every word typed in its name (or its registry name), any order, any case; best first.
+check(supplies.score("quad uran", "Quad Fuel Rod (Uranium)", ROD) > supplies.score("quad uran", "Quad Fuel Rod (Depleted Uranium)", ROD),
+  "a match: the closer name ranks higher")
+check(supplies.score("quad uran", "Uranium 235", "x") == nil, "a word missing: no match")
+check(supplies.score("reactoruranium", "Quad Fuel Rod (Uranium)", ROD), "the registry name counts too")
+check(supplies.score("quad fuel rod (uranium)", "Quad Fuel Rod (Uranium)", ROD) > supplies.score("quad uran", "Quad Fuel Rod (Uranium)", ROD),
+  "the whole name, best of all")
+local function searchAll(text)
+  local s = assert(supplies.search(component, text))
+  local steps = 0
+  while s:step(100) do steps = steps + 1 end
+  return s, steps
+end
+local s1 = searchAll("quad uran")
+check(#s1.results == 3 and s1.results[1].label == "Quad Fuel Rod (Uranium)" and s1.results[1].name == ROD and s1.results[1].damage == 0
+  and s1.results[1].amount == 312 and s1.results[2].label == "Quad Fuel Rod (Depleted Uranium)",
+  "part of a name: both rods, the closer first")
+check(s1.results[3].label == "Something else", "a match on the registry name only, last")
+local s2 = searchAll("cool")
+check(#s2.results == 1 and s2.results[1].kind == "fluid" and s2.results[1].name == "ic2coolant", "a fluid by part of its name")
+
+-- A big ME system: looked through a step at a time, never all at once; STOP keeps what's found.
+local many = {}
+for k = 1, 3000 do many[k] = { name = "mod:junk", damage = k, label = "Junk " .. k, size = k } end
+many[2500] = { name = ROD, damage = 0, label = "Quad Fuel Rod (Uranium)", size = 312 }
+local bigMe = Gen.me(many, {})
+M.components = { ["ae000000-0000"] = bigMe.entry }
+local s3, stepCount = searchAll("quad uran")
+check(stepCount >= 29 and s3.looked == 3000 and #s3.results == 1 and s3.done, ("3000 items, 100 a step (%d steps)"):format(stepCount))
+local s4 = assert(supplies.search(component, "junk 1"))
+s4:step(100)
+s4:stop()
+check(s4.done and s4.looked == 100 and #s4.results > 0 and not s4:step(100), "STOP: done, what was found kept")
+local s5 = assert(supplies.search(component, "junk"))
+while s5:step(500) do end
+check(#s5.results == supplies.MAX_RESULTS, "at most " .. supplies.MAX_RESULTS .. " results kept (the best)")
+M.components = { ["ae000000-0000"] = me.entry }
 me.broken = "unloaded"
 check(supplies.new(component, cfg):read()[1].err == "unloaded", "an ME system that fails: why")
 me.broken = nil
@@ -213,16 +244,39 @@ local function typed(text, erase)
 end
 local function add(l) for _, s in ipairs(l) do steps[#steps + 1] = s end end
 local function seenStep(fn) steps[#steps + 1] = function() fn(); return nil end end
+local function waitFor(fn, label)
+  local tries = 0
+  local w
+  w = function()
+    tries = tries + 1
+    if fn() then return nil end
+    assert(tries < 200, "waited too long for " .. label)
+    table.insert(steps, 1, w)
+    return nil
+  end
+  steps[#steps + 1] = w
+end
 
 local DET, FOOT = 40, 50
 seen = {}
+for k = 1, 3000 do table.insert(me.items, 1, { name = "mod:junk", damage = k, label = "Junk " .. k, size = k }) end
 add({ tap(" SUPPLIES 0 ", 2), tap(" + NEW ", FOOT) })
 seenStep(function() seen.find = M.find("Add a supply: what's it called?", 1) and M.find("FIND", 6) end)
-add(typed("Quad Fuel"))
-seenStep(function() seen.nothing = M.find('Nothing called "Quad Fuel"', 8) end)
+add(typed("zzz"))
+waitFor(function()
+  if M.find("Looking... ", 7) and M.find(" STOP ", 6) then seen.progress = true end
+  return M.find("Looked through", 7)
+end, "the search")
+seenStep(function() seen.nothing = M.find('nothing has every word of "zzz"', 7) end)
 add({ tapField("Name", 7, 6) })
-add(typed("Quad Fuel Rod (Uranium)", #"Quad Fuel"))
-seenStep(function() seen.results = M.find("Tap the one to watch:", 8) and M.find(ROD .. ":0", 9) end)
+add(typed("quad uran", 3))
+waitFor(function() return M.find("Looked through 3002 items", 7) end, "the search")
+seenStep(function()
+  local _, y1 = M.find("Quad Fuel Rod (Uranium)", 9)
+  local _, y2 = M.find("Quad Fuel Rod (Depleted Uranium)", 9)
+  seen.results = M.find("Tap the one to watch", 8) and M.find(ROD .. ":0", 9) and y1 and y2 and y1 < y2
+  H.screen("lumen-setup-find")
+end)
 add({ tap("Quad Fuel Rod (Uranium)", 9) })
 seenStep(function() seen.added = M.find("Added Quad Fuel Rod (Uranium)", FOOT - 1) and M.find(" SUPPLIES 1 ", 2) end)
 add({ tapField("under", 7, DET + 3) })
@@ -245,8 +299,9 @@ local ok, err = pcall(H.run, "lumen-setup.lua")
 print = realPrint -- luacheck: ignore 121
 M.onPull = nil
 check(ok, "lumen-setup runs" .. (ok and "" or (": " .. tostring(err))))
-check(seen.find and seen.nothing, "+ NEW asks for its name; part of an item's name finds nothing, and says why")
-check(seen.results and seen.added, "its whole name: found; tap it to add it")
+check(seen.find and seen.nothing, "+ NEW asks for part of its name; nothing matching says so")
+check(seen.progress, "3000 items: looked through a step at a time, how far it's got and STOP on screen")
+check(seen.results and seen.added, "\"quad uran\": both rods, the closer first; tap it to add it")
 check(seen.count, "COUNT: how many the ME system has now")
 local c = assert(config.load(CFG))
 local sp = c.supplies[1]

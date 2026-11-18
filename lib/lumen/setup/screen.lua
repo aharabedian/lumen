@@ -79,6 +79,15 @@ function Screen.run(env)
   local function flash(text, ok) S.msg, S.msgOk = text, ok ~= false end
   local function report(ok, why) if not ok and why then flash(why, false) end end
   local function shrc() return files.shrcText(env.shrcPath, S.boot) end
+  -- SUPPLIES' search (lumen.setup's find view): looked through a step at a time by the event loop.
+  local function startFind(text)
+    local fd = S.find
+    if not fd then return end
+    if fd.search then fd.search:stop() end
+    fd.text = text
+    fd.search, fd.err = supplies.search(component, text)
+    fd.began = uptime()
+  end
   local function dirty() return #ed.changes() > 0 or shrc() ~= nil end
 
   local function commitFocus()
@@ -806,10 +815,7 @@ function Screen.run(env)
         if not ed.snap.me then flash("No ME interface or controller found: put an adapter on one, then RESCAN.", false); return end
         S.find = { text = "" }
         S.view = "find"
-        S.focus = { id = "findtext", text = "", apply = function(text)
-          S.find.text = text
-          S.find.results, S.find.err = supplies.search(component, text)
-        end }
+        S.focus = { id = "findtext", text = "", apply = function(text) startFind(text) end }
       end)
     end
     local list = S.tab ~= "general" and rows() or {}
@@ -997,25 +1003,33 @@ function Screen.run(env)
   local function drawFind()
     local fd = S.find
     header("Add a supply: what's it called?")
-    say(3, 3, "Type its name as its tooltip shows it, then Enter. Items: the whole name, exactly (\"Quad Fuel Rod (Uranium)\").", C.dim)
-    say(3, 4, "Fluids: part of the name will do. LUMEN asks the ME system, so even a big one never fills this computer.", C.dim)
+    say(3, 3, "Type part of its name, then Enter: every word you type must be in it (\"quad uran\", \"coolant\").", C.dim)
+    say(3, 4, "LUMEN looks through the ME system an item at a time; a big one takes a while. Tap one as soon as you see it.", C.dim)
     f:text(3, 6, "Name", C.dim)
-    local fx = field(9, 6, 44, "findtext", fd.text, S.focus and S.focus.apply or function(text)
-      fd.text = text
-      fd.results, fd.err = supplies.search(component, text)
-    end)
-    button(fx, 6, "FIND", function()
+    local fx = field(9, 6, 44, "findtext", fd.text, function(text) startFind(text) end)
+    fx = button(fx, 6, "FIND", function()
       local text = S.focus and S.focus.id == "findtext" and S.focus.text or fd.text
       S.focus = nil
-      fd.text = text
-      fd.results, fd.err = supplies.search(component, text)
+      startFind(trim(text))
     end, true)
+    local sr = fd.search
     if fd.err then say(3, 8, fd.err, C.bad)
-    elseif fd.results and #fd.results == 0 then
-      say(3, 8, ("Nothing called %q in the ME system. Check its tooltip (an item's whole name, any fluid's part)."):format(fd.text), C.warn)
-    elseif fd.results then
-      say(3, 8, "Tap the one to watch:", C.text)
-      for k, r in ipairs(fd.results) do
+    elseif sr then
+      local secs = math.max(0.001, uptime() - (fd.began or uptime()))
+      local found = #sr.results
+      local status
+      if sr.done then
+        status = ("Looked through %d items: %s"):format(sr.looked, found == 0 and ("nothing has every word of %q"):format(fd.text)
+          or (found .. " match" .. (found == 1 and "" or "es") .. (found >= supplies.MAX_RESULTS and " (the best " .. found .. ")" or "")))
+        if sr.err then status = status .. " (stopped: " .. sr.err .. ")" end
+      else
+        status = ("Looking... %d items so far (%d a second), %d match%s"):format(sr.looked, math.floor(sr.looked / secs),
+          found, found == 1 and "" or "es")
+        button(fx, 6, "STOP", function() sr:stop() end, false, C.bad)
+      end
+      say(3, 7, status, sr.done and (found == 0 and C.warn or C.text) or C.info)
+      if found > 0 then say(3, 8, "Tap the one to watch:", C.text) end
+      for k, r in ipairs(sr.results) do
         local y = 8 + k
         if y > H - 2 then break end
         f:text(3, y, "●", C.good)
@@ -1023,6 +1037,7 @@ function Screen.run(env)
         f:text(40, y, fit(r.kind == "fluid" and ("fluid " .. r.name) or ("%s:%d"):format(r.name, r.damage or 0), W - 54), C.dim)
         f:text(W - 12, y, Gui.rfit(frame.si(r.amount) .. supplies.unit(r.kind), 11), C.text)
         f:hit(1, y, W, y, function()
+          sr:stop()
           local at = ed.addSupply(r)
           S.view, S.tab, S.find = "edit", "supplies", nil
           S.sel.supplies = ed.c.supplies[at].name
@@ -1030,7 +1045,10 @@ function Screen.run(env)
         end)
       end
     end
-    button(2, FOOT, "BACK", function() S.view, S.find = "edit", nil end)
+    button(2, FOOT, "BACK", function()
+      if fd.search then fd.search:stop() end
+      S.view, S.find = "edit", nil
+    end)
   end
 
   local function drawSaved()
@@ -1080,7 +1098,9 @@ function Screen.run(env)
     draw()
     while S.running do
       local pairing = S.view == "pair" and S.pair and not S.pair.done
-      local ev = table.pack(event.pullMultiple(pairing and 0.5 or 60, "touch", "key_down", "scroll", "interrupted"))
+      local finding = S.view == "find" and S.find and S.find.search and not S.find.search.done
+      local ev = table.pack(event.pullMultiple(finding and 0 or pairing and 0.5 or 60, "touch", "key_down", "scroll",
+        "interrupted"))
       local name, redraw = ev[1], false
       if name == "touch" then
         -- touch: screenAddress, x, y, button, player
@@ -1099,6 +1119,10 @@ function Screen.run(env)
         S.running = false
       end
       if pairing and S.running and not S.pair.done then S.pair:step(uptime()); redraw = true end
+      if finding and S.running and S.find and S.find.search and not S.find.search.done then
+        S.find.search:step(200)
+        redraw = true
+      end
       if S.running and redraw then draw() end
     end
   end

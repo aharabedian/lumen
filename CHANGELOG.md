@@ -13,7 +13,8 @@ versions follow [Semantic Versioning](https://semver.org/).
   adapter on an ME interface (one lookup each). A SUPPLIES section on the main page (stock, how long it lasts at the
   last hour's rate), a page (per hour, the day's line, alerts, what it feeds), alerts (under `below`, bad at none;
   over `above`; under `hours` left), big mode, and LENS (`lumen_supply_amount`, `lumen_supply_seconds_left`).
-  `lumen-setup`'s SUPPLIES tab finds one by the name its tooltip shows.
+  `lumen-setup`'s SUPPLIES tab finds one by part of its name ("quad uran"), looking through the ME system a step
+  at a time.
 
 ### Added
 - **Timeline** (TIMELINE on the POWER line): 8 H, 24 H or 7 D of a bar per switch coloured by its state (on, by

@@ -116,7 +116,7 @@ groups = {
 ## Supplies
 
 What generators burn or make, counted in an AE2 ME system through an adapter on an ME interface (or controller).
-LUMEN only counts; it never moves anything. `lumen-setup`'s SUPPLIES tab finds them by name. [Setup](setup.md#supplies).
+LUMEN only counts; it never moves anything. `lumen-setup`'s SUPPLIES tab finds them by part of their name. [Setup](setup.md#supplies).
 
 ```lua
 supplies = {
