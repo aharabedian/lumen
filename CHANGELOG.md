@@ -5,6 +5,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-18
+
 ### Added
 - **Who can switch** (`operators`): only the players listed can tap AUTO / ON / OFF, RESET and QUIT; anyone else's
   tap changes nothing, the footer says who can, and the timeline logs the try with their name. lumen-setup's
@@ -15,8 +17,6 @@ versions follow [Semantic Versioning](https://semver.org/).
   over `above`; under `hours` left), big mode, and LENS (`lumen_supply_amount`, `lumen_supply_seconds_left`).
   `lumen-setup`'s SUPPLIES tab finds one by part of its name ("quad uran"), looking through the ME system a step
   at a time.
-
-### Added
 - **Timeline** (TIMELINE on the POWER line): 8 H, 24 H or 7 D of a bar per switch coloured by its state (on, by
   hand, off, fault, trip, error; blank while LUMEN wasn't running), the fill and how many ran, and the events:
   switches going on and off and why, faults, trips, RESETs and modes set by hand with the player who tapped,
