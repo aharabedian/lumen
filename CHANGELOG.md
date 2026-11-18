@@ -5,6 +5,13 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Energy** (ENERGY on the POWER line): the last 24 hours, stacked by group and source, with "other" (what came
+  in that no source accounts for) and the load as a line; each one's EU, share, uptime, EU/t while running,
+  starts and at full; and HEADROOM: everything at full against the load's average and peak, and what's spare at
+  the peak, in reactors too. LUMEN now keeps each source's history (across restarts); LENS gets
+  `lumen_source_24h_eu`.
+
 ## [0.2.1] - 2026-11-18
 
 ### Added

@@ -76,6 +76,22 @@ needed changes; it doesn't swap running reactors to even out their run time.
 
 ![A group's page](images/lumen-group.png)
 
+### Energy
+
+**ENERGY** on the POWER line opens the last 24 hours:
+
+- **A chart** of what was made, stacked by group and by source (and **other**: what the LSCs took in that no
+  source accounts for, such as generators without an adapter or wireless EU), with the load as a white line.
+- **A row each:** EU over the day, its share, uptime, the average EU/t while running (a group's: per member),
+  starts, and the most EU/t it's been seen making (FULL). Then what came in and went out.
+- **HEADROOM:** everything at full against the load now, its average and its peak, and what's spare at the
+  peak, also counted in your first group's reactors ("≈ 1.4 Quad Uranium reactors"). A source never seen running
+  isn't counted, and the page says how many there are.
+
+It's kept across restarts. After an update, it fills in from then on.
+
+![The last 24 hours' energy](images/lumen-energy.png)
+
 ### Big mode
 
 After `glanceAfter` seconds (5 minutes) with no tap and nobody near, or when you tap **BIG** in the header, the

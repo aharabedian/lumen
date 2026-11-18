@@ -403,13 +403,17 @@ local function powerSection(f, m, secs, titled, L, x, y, width, actions)
       end
     end
   end
-  local t = n > 0 and ("%d of %d running   %s EU/t"):format(on, n, si(eu)) or ""
+  local t = n > 0 and ("%d of %d running"):format(on, n) or ""
   if L.hidden > 0 then t = t .. ("   +%d more %s"):format(L.hidden, L.view == "tiles" and "tiles" or "rows") end
-  f:text(x + 7, y, Gui.fit(t, math.max(0, width - 7 - 16)), C.dim)
+  if n > 0 then t = t .. ("   %s EU/t"):format(si(eu)) end
+  f:text(x + 7, y, Gui.fit(t, math.max(0, width - 7 - 26)), C.dim)
+  local right = x + width
   if any >= 2 then
-    local bx = f:button(x + width - 15, y, "TILES", function() actions.view("tiles") end, L.view == "tiles")
+    local bx = f:button(right - 15, y, "TILES", function() actions.view("tiles") end, L.view == "tiles")
     f:button(bx - 1, y, "ROWS", function() actions.view("rows") end, L.view == "rows")
+    right = right - 16
   end
+  if actions.energy then f:button(right - 9, y, "ENERGY", actions.energy) end
 end
 
 function main.alerts(f, m, x, y, width, lastRow)
