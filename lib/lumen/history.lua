@@ -56,12 +56,16 @@ function history.new(saved)
     self.src = type(saved.src) == "table" and saved.src or {}
     self.states = type(saved.states) == "table" and saved.states or {}
   end
-  -- History from before in and out were kept: unknown for the samples already there.
+  -- History from before in and out were kept: unknown for the samples already there. And one saved after a
+  -- sample begun by 0.2.1 crashed its finishing (a sample kept, its in and out not): lined up again.
   for _, l in pairs(self.lsc) do
     local rg = l[3]
-    if rg and not rg.inE then
-      rg.inE, rg.outE = {}, {}
-      for j = 1, #rg.i do rg.inE[j], rg.outE[j] = false, false end
+    if rg then
+      rg.inE, rg.outE = rg.inE or {}, rg.outE or {}
+      for _, list in ipairs({ rg.inE, rg.outE }) do
+        while #list < #rg.i do table.insert(list, 1, false) end
+        while #list > #rg.i do table.remove(list, 1) end
+      end
     end
   end
   return self
@@ -85,9 +89,9 @@ local function push(rg, cur)
   rg.i[#rg.i + 1] = cur.i
   rg.fill[#rg.fill + 1] = math.floor(cur.fill / cur.n * 1e4 + 0.5) / 1e4
   if rg.stored then rg.stored[#rg.stored + 1] = cur.stored / cur.n end
-  if rg.inE then
-    rg.inE[#rg.inE + 1] = math.floor(cur.inE / cur.n + 0.5)
-    rg.outE[#rg.outE + 1] = math.floor(cur.outE / cur.n + 0.5)
+  if rg.inE then        -- a sample begun by 0.2.1 has no in and out: unknown
+    rg.inE[#rg.inE + 1] = cur.inE and math.floor(cur.inE / cur.n + 0.5) or false
+    rg.outE[#rg.outE + 1] = cur.outE and math.floor(cur.outE / cur.n + 0.5) or false
   end
   if #rg.i > history.SAMPLES then
     table.remove(rg.i, 1)
