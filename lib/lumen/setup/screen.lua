@@ -24,6 +24,7 @@ local Editor  = require("lumen.setup.editor")
 local files   = require("lumen.setup.files")
 local scan    = require("lumen.setup.scan")
 local Pair    = require("lumen.setup.pair")
+local config  = require("lumen.config")
 
 local Screen = {}
 
@@ -547,7 +548,9 @@ function Screen.run(env)
     local y = LIST_TOP
     local function label(text) f:text(3, y, text, C.dim) end
     local function num(x, w, id, key, lo, hi, what)
-      return field(x, y, w, id, c[key], function(text)
+      local v = c[key]
+      if v == nil then v = config.DEFAULTS[key] end   -- a file from before the setting existed
+      return field(x, y, w, id, v, function(text)
         local n = whole(text, lo, hi)
         if not n then return ("%s must be a whole number from %d to %d"):format(what, lo, hi) end
         ed.set(key, n)
@@ -589,6 +592,48 @@ function Screen.run(env)
     x = toggle(20, y, "ON", c.beep ~= false, function() ed.set("beep", true) end)
     x = toggle(x, y, "OFF", c.beep == false, function() ed.set("beep", false) end)
     say(x, y, "once when a bad alert appears", C.dim)
+    y = y + step
+    label("Big mode")
+    local after = c.glanceAfter == nil and 300 or c.glanceAfter
+    x = toggle(20, y, "ON", after > 0, function() if after == 0 then ed.set("glanceAfter", 300) end end)
+    x = toggle(x, y, "OFF", after == 0, function() ed.set("glanceAfter", 0) end)
+    if after > 0 then
+      f:text(x, y, "after", C.dim)
+      x = field(x + 6, y, 3, "glanceafter", math.max(1, math.floor(after / 60 + 0.5)), function(text)
+        local n = whole(text, 1, 600)
+        if not n then return "big mode's wait must be a whole number of minutes, 1-600" end
+        ed.set("glanceAfter", n * 60)
+      end)
+      f:text(x - 1, y, " min idle,", C.dim)
+      x = x + 10
+    else
+      f:text(x, y, "only with BIG on the screen;", C.dim)
+      x = x + 29
+    end
+    f:text(x, y, "x", C.dim)
+    x = num(x + 2, 2, "glancescale", "glanceScale", 2, 6, "big mode's size")
+    say(x - 1, y, " bigger", C.dim)
+    y = y + step
+    label("Wake it")
+    local kinds = ed.snap.presence or {}
+    if #kinds == 0 then
+      say(20, y, "by tapping (a radar, entity detector or motion sensor wakes it as you walk up)", C.dim)
+    else
+      local found = table.concat(kinds, ", ") .. ": within"
+      say(20, y, found, C.text)
+      x = 20 + Gui.len(found)
+      x = num(x + 1, 2, "wakerange", "wakeRange", 1, 8, "the wake range")
+      f:text(x - 1, y, " blocks, only", C.dim)
+      x = field(x + 13, y, 16, "wakeplayers", table.concat(c.wakePlayers or {}, ", "), function(text)
+        local names = {}
+        for n in text:gmatch("[^,]+") do
+          n = trim(n)
+          if n ~= "" then names[#names + 1] = n end
+        end
+        ed.set("wakePlayers", #names > 0 and names or nil)
+      end)
+      say(x, y, "(blank: anyone); or a tap", C.dim)
+    end
     y = y + step
     label("LENS")
     x = toggle(20, y, "OFF", c.lensPort == nil, function() ed.set("lensPort", nil) end)

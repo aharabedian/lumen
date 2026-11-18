@@ -52,7 +52,8 @@ local Editor = {}
 local SIDES = { "bottom", "top", "north", "south", "west", "east" }
 local ALIAS = { down = "bottom", up = "top", back = "north", front = "south", right = "west", left = "east" }
 local GENERAL = { "interval", "lowFill", "criticalFill", "drainWarnHours", "drainBadHours", "drainAverage", "inputDrop",
-  "maxPassiveLoss", "heatWarn", "heatBad", "beep", "lensPort", "lensNode", "lensToken" }
+  "maxPassiveLoss", "heatWarn", "heatBad", "beep", "glanceAfter", "glanceScale", "wakeRange", "wakePlayers", "lensPort", "lensNode",
+  "lensToken" }
 
 local function copy(v)
   if type(v) ~= "table" then return v end

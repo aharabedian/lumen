@@ -70,7 +70,7 @@ local cfgPath = writeCfg("vac", [[
   names = { d2440f27 = "Main" },
   sources = { { address = "eeee", name = "Vac reactor" } },
   control = { { name = "Vac nuke", redstone = "5e1f", side = "north", onBelow = 30, offAbove = 90, source = "Vac reactor" } },
-  lensPort = 4243, lensNode = "power-room",
+  lensPort = 4243, lensNode = "power-room", glanceAfter = 0,
 ]])
 
 ---------------------------------------------------------------- a whole cycle
@@ -198,7 +198,7 @@ local faultCfg = writeCfg("fault", [[
   sources = { { address = "eeee", name = "Vac reactor" } },
   control = { { name = "Vac nuke", redstone = "5e1f", side = "north", onBelow = 30, offAbove = 90, source = "Vac reactor",
     fault = { redstone = "5e1f", side = "south", latch = true } } },
-  lensPort = 4243, lensNode = "power-room",
+  lensPort = 4243, lensNode = "power-room", glanceAfter = 0,
 ]])
 lsc.state.stored = 0.2 * CAP                     -- low: AUTO wants it on
 run(faultCfg, M.time + 30)

@@ -65,7 +65,7 @@ function F.shrcText(path, want)
 end
 
 -- Settings that mean "off" when nil stay nil; every other default is written out.
-local NILABLE = { lensToken = true, lensPort = true, inputDrop = true, maxPassiveLoss = true }
+local NILABLE = { lensToken = true, lensPort = true, inputDrop = true, maxPassiveLoss = true, wakePlayers = true }
 
 function F.finish(c)
   for k, v in pairs(config.DEFAULTS) do

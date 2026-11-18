@@ -44,18 +44,24 @@ local function main()
   app:start(computer.uptime())
   local nextTick = computer.uptime() + cfg.interval
   while app.running do
-    local ev = table.pack(event.pullMultiple(math.max(0.05, nextTick - computer.uptime()),
-      "touch", "modem_message", "interrupted"))
+    local due = app:senseDue()
+    local ev = table.pack(event.pullMultiple(math.max(0.05, math.min(nextTick, due or math.huge) - computer.uptime()),
+      "touch", "modem_message", "motion", "interrupted"))
     local now = computer.uptime()
     if ev[1] == "touch" then
       -- touch: screenAddress, x, y, button, player
       app:onTouch(math.floor(ev[3]), math.floor(ev[4]), now)
+    elseif ev[1] == "motion" then
+      -- motion: sensorAddress, dx, dy, dz, name
+      app:onMotion(ev[6], now)
     elseif ev[1] == "modem_message" then
       -- modem_message: localAddress, remoteAddress, port, distance, payload
       app:onModem(ev[4], ev[6])
     elseif ev[1] == "interrupted" then
       app.running = false
     end
+    due = app:senseDue()
+    if app.running and due and now >= due then app:sense(now) end
     if app.running and now >= nextTick then
       app:tick(now)
       nextTick = now + cfg.interval

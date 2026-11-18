@@ -22,6 +22,11 @@ config.DEFAULTS = {
   heatWarn = 25,           -- warn when a reactor is at this % of its max heat
   heatBad = 50,            -- bad at this %
   beep = true,             -- beep when a bad alert appears
+  glanceAfter = 300,       -- big mode (few, big characters) after this many seconds without a tap or anyone near;
+                           -- 0: only with BIG on the screen
+  glanceScale = 3,         -- big mode's characters are this many times bigger
+  wakeRange = 6,           -- blocks: a player this close wakes big mode (radar, entity detector; a motion sensor: 8)
+  wakePlayers = nil,       -- { "Steve" }: only these wake it; nil: anyone (a motion sensor: anything that moves)
   sources = {},            -- { { address = "a1b2", name = "LFTR", alwaysOn = true }... }: GT generators to show
   control = {},            -- switches: { { name, redstone | machine, side, onBelow, offAbove, ... }... }
   groups = {},             -- { { name, steps = { { onBelow, offAbove, run }... }, rotate, lsc }... }: switches
@@ -68,6 +73,21 @@ function config.check(c)
     end
   end
   if type(c.beep) ~= "boolean" then return nil, "beep must be true or false" end
+  if type(c.glanceAfter) ~= "number" or (c.glanceAfter ~= 0 and c.glanceAfter < 10) then
+    return nil, "glanceAfter must be a number of seconds, 10 or more, or 0 for only by hand"
+  end
+  if math.type(c.glanceScale) ~= "integer" or c.glanceScale < 2 or c.glanceScale > 6 then
+    return nil, "glanceScale must be a whole number, 2-6"
+  end
+  if type(c.wakeRange) ~= "number" or c.wakeRange < 1 or c.wakeRange > 8 then
+    return nil, "wakeRange must be a number of blocks, 1-8"
+  end
+  if c.wakePlayers ~= nil then
+    if type(c.wakePlayers) ~= "table" then return nil, 'wakePlayers must be a list of names: { "Steve" }, or nil' end
+    for _, n in ipairs(c.wakePlayers) do
+      if type(n) ~= "string" or n == "" then return nil, 'wakePlayers must be a list of names: { "Steve" }, or nil' end
+    end
+  end
   err = (c.inputDrop ~= nil and number(c, "inputDrop", 1, 100, "a percent, 1-100, or nil"))
     or (c.maxPassiveLoss ~= nil and number(c, "maxPassiveLoss", 0, nil, "a number of EU/t, or nil"))
     or number(c, "heatWarn", 0, 100, "a percent, 0-100")
