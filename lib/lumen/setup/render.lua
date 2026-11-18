@@ -41,7 +41,7 @@ end
 
 local SETTINGS = {
   { "interval", "seconds between readings" },
-  { "resolution", "{ width, height }: fewer, bigger characters; nil = the screen's largest" },
+  { "resolution", '"fit" fills the screen\'s shape; "max": the GPU\'s largest; { width, height }: bigger characters' },
   { "lowFill", "warn below this % full" },
   { "criticalFill", "bad below this % full" },
   { "drainWarnHours", "warn when empty within this many hours (switches: see docs/configuration.md)" },

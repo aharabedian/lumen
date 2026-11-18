@@ -134,6 +134,23 @@ cfgPath = writeCfg("big", "resolution = { 80, 25 },")
 M.resize(160, 50)
 run(cfgPath, 10)
 check(M.find("QUIT", 1) == 72 + 3 and M.oob == 0, "resolution: drawn for 80 x 25")
+-- "fit" (the default): the screen's shape in blocks. 7 wide, 3 tall: as wide as it goes, 160 x 33.
+M.aspect = { 7, 3 }
+run(writeCfg("fit", ""), 10)
+check(M.resolution[1] == 160 and M.resolution[2] == 33 and M.oob == 0 and M.H == 33 and M.find("Tap an LSC", 33),
+  ("resolution fit: 160 x 33 on a 7 x 3 screen (got %d x %d)"):format(M.resolution[1], M.resolution[2]))
+run(writeCfg("max", 'resolution = "max",'), 10)
+check(M.resolution[1] == 160 and M.resolution[2] == 50, '"max": the GPU\'s largest, whatever the shape')
+M.aspect = nil
+run(writeCfg("fit2", ""), 10)
+check(M.resolution[1] == 160 and M.resolution[2] == 50, "a screen that doesn't say its shape: the largest")
+do
+  local Gui = require("lumen.gui")
+  local w, h = Gui.resolution(160, 50, 3, 4)
+  check(w == 73 and h == 50, ("3 wide, 4 tall: 73 x 50 (got %d x %d)"):format(w, h))
+  w, h = Gui.resolution(80, 25, 7, 3)
+  check(w == 80 and h == 16, ("tier 2 on 7 x 3: 80 x 16 (got %d x %d)"):format(w, h))
+end
 
 ---------------------------------------------------------------- LENS
 local codec = require("lumen.lens.codec")

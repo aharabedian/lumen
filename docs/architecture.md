@@ -5,7 +5,7 @@
 | Program (`src/`) | Does |
 |---|---|
 | `lumen.lua` | The power screen. The event loop only: the work is in `lumen.app` |
-| `lumen-setup.lua` | Guided setup: writes `/home/lumen.cfg` and `.shrc` (`lumen.setup.*`) |
+| `lumen-setup.lua` | Setup: the touchscreen editor (80x25 or more), or the text questions (`--text`, or a smaller screen); writes `/home/lumen.cfg` and `.shrc` (`lumen.setup.*`) |
 | `lumen-discover.lua` | Lists components with every method and doc; `--read` shows what the read-only ones return; `--probe` reads IC2 reactors and transposers for reactor control; `--release` calls `setActive(false)` on reactors (`lumen.discover`) |
 | `lumen-update.lua` | Installs and updates from GitHub what `manifest.lua` lists. Self-contained: it installs the modules |
 
@@ -23,16 +23,20 @@ path, forget cached `lumen.*` modules, and say "run lumen-update" if they're mis
 | `lumen.history` | Fill at three ranges (30 s, 3 min and 9 min samples, 160 each) and hourly totals for 48 hours: EU in and out, peak draw, lowest fill, switches' time on; the net over a window |
 | `lumen.state` | `/home/lumen-state.cfg`: manual modes and history between runs; a real-time clock from a file's modification time |
 | `lumen.alerts` | Alerts from readings, sources and switches (pure), with a hold each; the drain judgement (`alerts.drain`); a tracker that raises after the hold and clears a minute after; health |
-| `lumen.screen` | Draws a model: the header, then `lumen.pages.main` (panels, POWER, alerts) or `lumen.pages.detail` (one LSC). Sends the GPU only changed rows or segments |
-| `lumen.frame` | A frame of row segments and touch targets, and widgets: buttons, bars, charts |
+| `lumen.screen` | Draws a model: the header, then `lumen.pages.main` (panels, POWER: a row per switch with its source's state, then unswitched sources; alerts) or `lumen.pages.detail` (one LSC). Sends the GPU only changed rows or segments |
+| `lumen.frame` | A frame of row segments and touch targets, and widgets: buttons, bars, charts; `paint` sends the GPU only what changed (a row with overlapping segments, whole) |
 | `lumen.config` | `/home/lumen.cfg`: defaults and checks |
 | `lumen.telemetry` | Optional reporting to LENS (lens/1) |
-| `lumen.gui` | Palette (the SPECTRA logo's, LUMEN green as the accent) and GPU helpers (the same as PRISM's and LENS's) |
+| `lumen.gui` | Palette (the SPECTRA logo's, LUMEN green as the accent), GPU helpers (the same as PRISM's and LENS's), and the resolution to draw at (`"fit"`: the screen's shape) |
 | `lumen.splash` | The SPECTRA logo in pixel art while `lumen` starts: `show(gpu, w, h, name, version, accent)`; `rows(scale)` is pure |
 | `lumen.lens.metrics`, `lumen.lens.codec` | **Vendored from LENS**, byte for byte: never edit here. Change LENS, then `tools/sync-lens.sh` (a test compares them with `../lens`) |
 | `lumen.discover` | Component reports; reading every read-only method (named get/is/has, documented as taking no arguments); the reactor probe (reactor slots, transposer sides and stacks, timed) and release |
 | `lumen.lsc` | Reads an LSC's `getSensorInformation` lines: stored, capacity, fill %, averages (5 s / 5 min / 1 h), time to full/empty, maintenance, capacitor counts |
-| `lumen.setup.steps`, `.render`, `.input` | `lumen-setup`'s questions, the commented `lumen.cfg` it writes, and terminal prompts |
+| `lumen.setup.screen` | `lumen-setup`'s touchscreen editor: tabs, the pick view, review before SAVE. Draws with `lumen.frame` |
+| `lumen.setup.editor` | The config as the editor changes it (pure): rows per tab, switches (+ NEW, COPY to the next block and name, DELETE), checks, changes, warnings |
+| `lumen.setup.scan` | What's attached, for the editor: LSCs, reactors, GT machines, redstone components; a block's redstone inputs (READ). Read only |
+| `lumen.setup.files` | Loading the old `lumen.cfg`, `.shrc`'s lumen line, filling defaults and checking before writing, saving with `.bak`: shared by both modes |
+| `lumen.setup.steps`, `.render`, `.input` | The text setup's questions, the commented `lumen.cfg` both modes write, and terminal prompts |
 | `lumen.version` | The release string; `lumen-update` keeps its own copy (a test checks) |
 
 ## What's verified in game
@@ -53,9 +57,11 @@ The tests run against `tests/mocks/oc.lua`. This table says which of its behavio
 | `setWorkAllowed(false)` on a GT generator's controller stops it, and `isWorkAllowed()` reads it back | Assumed (the methods are seen on an LSC; LUMEN never calls them on one) |
 | A GT generator (an LFTR, turbines) answers `isMachineActive`, `getWorkProgress`, `getWorkMaxProgress`; its sensor lines say its EU/t in a line with "EU/t" and output / generates / produces, and maintenance as "Problems: n" or a `maintenance_status` key | Assumed: LUMEN shows "–" when a line isn't there. Run `lumen-discover --read` on an LFTR to confirm |
 | An IC2 reactor is component `reactor` with `getHeat` (integer), `getMaxHeat` (integer, 10000), `getReactorEUOutput` and `getReactorEnergyOutput` (floats; 1200 running), `getOfferedEnergy` (float), `getSlotInfo(x:int, y:int)`, `producesEnergy`, `setActive(active): boolean` | **Seen in game** (`--probe`, 2026-11-14) |
+| A proxy's methods are **callable tables**, not functions: `type(proxy.getHeat)` is `"table"`, so code checks `proxy.x ~= nil`, never `type(...) == "function"` (the mock hands out the same) | **Seen in game** (2026-11-15: every reactor read "no answer") |
 | An IC2 reactor's heat and parts don't change while it's off | Seen in game (the user, 2026-11-14) |
 | `setActive` is a second "on" input beside redstone: the reactor runs if **either** is on. `setActive(false)` can't stop a reactor its redstone runs; `setActive(true)` holds one on whatever its redstone says | Seen in game (with the redstone on, then off, 2026-11-14) |
 | The `setActive(true)` flag is **kept in the reactor**: it stayed on with the computer off, the adapter broken, and a lever switched on and off. Only `setActive(false)` clears it. LUMEN never sets it | Seen in game (the user, 2026-11-14) |
+| `screen.getAspectRatio()` gives a multiblock screen's size in blocks; text is drawn as large as fits keeping the resolution's shape; characters are twice as tall as wide; about 1/8 block of border at each edge (`resolution = "fit"`: 160 × 33 on 7 × 3) | Seen in game on a 3 × 4 screen with the same formula (2026-11-12); the 1/8-block border is an estimate |
 | A **Redstone I/O block keeps its output** when its computer shuts down, and when the cable to it is broken | Seen in game (2026-11-14): never run a reactor through one |
 | A **redstone card** in the computer's case drops its output to 0 when the computer shuts down (cleanly) | Seen in game (2026-11-14) |
 | A redstone card's output drops to 0 when the computer loses power | Seen in game (2026-11-14) |

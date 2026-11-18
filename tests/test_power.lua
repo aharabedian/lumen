@@ -21,6 +21,7 @@ check(bad({ lowFill = 120 }, "lowFill must be a percent"), "a fill over 100% is 
 check(bad({ lowFill = 5, criticalFill = 10 }, "criticalFill must not be above lowFill"), "critical above low is refused")
 check(bad({ names = { d244 = 3 } }, "names:"), "a name must be text")
 check(bad({ resolution = { 20, 5 } }, "resolution must be"), "a tiny resolution is refused")
+check(bad({ resolution = "big" }, "resolution must be"), "resolution: \"fit\", \"max\" or { width, height }")
 check(bad({ lensPort = 70000 }, "lensPort must be"), "a port out of range is refused")
 local f = io.open(H.TMP .. "/broken.cfg", "w"); f:write("return { interval = }"); f:close()
 local c, err = config.load(H.TMP .. "/broken.cfg")

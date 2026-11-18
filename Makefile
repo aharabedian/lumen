@@ -26,8 +26,10 @@ docs-images: screens
 	cp build/screens/lumen-three.png docs/images/lumen-three.png
 	cp build/screens/lumen-tier2.png docs/images/lumen-tier2.png
 	cp build/screens/lumen-control.png docs/images/lumen-control.png
+	cp build/screens/lumen-wall.png docs/images/lumen-wall.png
 	cp build/screens/lumen-detail.png docs/images/lumen-detail.png
 	cp build/screens/lumen-fault.png docs/images/lumen-fault.png
+	cp build/screens/lumen-setup.png docs/images/lumen-setup.png
 
 # Install luacheck (.luarocks/) and a Python venv (.venv/), no sudo needed
 dev:

@@ -15,10 +15,9 @@
   sideLabels    the sides offered, in order
 ]]
 
-local config = require("lumen.config")
+local files  = require("lumen.setup.files")
 local input  = require("lumen.setup.input")
 local power  = require("lumen.power")
-local render = require("lumen.setup.render")
 local sources = require("lumen.sources")
 
 local S = {}
@@ -30,23 +29,6 @@ local GENERATOR_WORDS = { "turbine", "generator", "lftr", "reactor", "dynamo", "
   "solar", "plasma", "fusion", "boiler", "gas" }
 
 local function short(address) return address:sub(1, 8) end
-
-local function read(path)
-  local f = io.open(path, "r")
-  if not f then return nil end
-  local s = f:read("*a")
-  f:close()
-  return s
-end
-
-local function write(path, text)
-  local f, err = io.open(path .. ".new", "w")
-  if not f then return false, err end
-  f:write(text)
-  f:close()
-  os.remove(path)
-  return os.rename(path .. ".new", path)
-end
 
 local function nameFor(map, address)
   for prefix, name in pairs(map or {}) do
@@ -249,33 +231,8 @@ local function lensStep(c, env)
   c.lensToken = (token ~= "-" and token) or nil
 end
 
--- .shrc with the lumen line added or removed; other lines are kept. nil when nothing changes.
-local function shrcText(path, want)
-  local text = read(path) or ""
-  local out, present = {}, false
-  for line in (text .. "\n"):gmatch("([^\n]*)\n") do
-    local word = line:match("^%s*(%S+)")
-    local prog = word and word:gsub("^.*/", ""):gsub("%.lua$", "")
-    if prog == "lumen" then present = true else out[#out + 1] = line end
-  end
-  if out[#out] == "" then out[#out] = nil end
-  if want == present then return nil end
-  if want then out[#out + 1] = "lumen" end
-  return #out > 0 and (table.concat(out, "\n") .. "\n") or ""
-end
-
-local function loadOld(path)
-  local text = read(path)
-  if not text then return {} end
-  local chunk, err = load(text, "=" .. path, "t", {})
-  if not chunk then error(path .. " can't be read (" .. err .. "): fix or delete it first", 0) end
-  local ok, c = pcall(chunk)
-  if not ok or type(c) ~= "table" then error(path .. " can't be read: fix or delete it first", 0) end
-  return c
-end
-
 function S.run(env)
-  local c = loadOld(env.cfgPath)
+  local c = files.loadOld(env.cfgPath)
   input.begin(6)
   local readings = lscStep(c, env)
   local gts = sourcesStep(c, env)
@@ -283,36 +240,16 @@ function S.run(env)
   alertsStep(c)
   lensStep(c, env)
   input.header("Start on boot")
-  local shrc = shrcText(env.shrcPath, input.yes("  start lumen when this computer boots?", true))
-
-  for k, v in pairs(config.DEFAULTS) do
-    if c[k] == nil and k ~= "lensToken" and k ~= "lensPort" and k ~= "inputDrop" and k ~= "maxPassiveLoss" then
-      c[k] = type(v) == "table" and {} or v
-    end
-  end
-  local text = render.cfg(c)
-  -- What's saved must load: a mistake here is a bug in lumen-setup, not something to write.
-  local chunk = load(text, "=lumen.cfg", "t", {})
-  local ran, saved = pcall(chunk or error)
-  local okCheck, why = config.check(ran and saved or nil)
-  if not okCheck then error("lumen-setup made a config that doesn't load (" .. tostring(why) .. ") - please report it", 0) end
+  local shrc = files.shrcText(env.shrcPath, input.yes("  start lumen when this computer boots?", true))
+  local text = files.finish(c)
 
   print("")
   print("This will be saved to " .. env.cfgPath .. ":")
   io.write(text)
   if shrc then print(""); print("and " .. env.shrcPath .. " will be:"); io.write(shrc ~= "" and shrc or "(empty)\n") end
   if not input.yes("Save?", true) then print("nothing saved"); return false end
-  local old = read(env.cfgPath)
-  if old then
-    local ok, err = write(env.cfgPath .. ".bak", old)
-    if not ok then error("can't write " .. env.cfgPath .. ".bak: " .. tostring(err), 0) end
-  end
-  local ok, err = write(env.cfgPath, text)
-  if not ok then error("can't write " .. env.cfgPath .. ": " .. tostring(err), 0) end
-  if shrc then
-    ok, err = write(env.shrcPath, shrc)
-    if not ok then error("can't write " .. env.shrcPath .. ": " .. tostring(err), 0) end
-  end
+  local ok, err = files.commit(env.cfgPath, text, env.shrcPath, shrc)
+  if not ok then error(err, 0) end
   print(("saved: %d LSC name(s), %d source(s), %d switch(es). Start lumen (or restart it) to use it."):format(
     #readings, #c.sources, #c.control))
   return true

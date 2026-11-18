@@ -11,7 +11,7 @@ local config = {}
 config.DEFAULTS = {
   interval = 5,            -- seconds between readings
   names = {},              -- { ["d2440f27"] = "Main" }: start of an LSC's address -> its name on screen
-  resolution = nil,        -- { 80, 25 }: fewer, bigger characters; nil: the screen's largest
+  resolution = "fit",      -- "fit": fill the screen's shape; "max": the GPU's largest; { 80, 25 }: bigger characters
   lowFill = 25,            -- warn below this % full
   criticalFill = 10,       -- bad below this % full
   drainWarnHours = 4,      -- warn when draining and empty within this many hours
@@ -58,10 +58,11 @@ function config.check(c)
       return nil, 'names: each entry is ["start of an address"] = "name"'
     end
   end
-  if c.resolution ~= nil then
+  do
     local r = c.resolution
-    if type(r) ~= "table" or math.type(r[1]) ~= "integer" or math.type(r[2]) ~= "integer" or r[1] < 40 or r[2] < 12 then
-      return nil, "resolution must be { width, height }, at least { 40, 12 }"
+    if r ~= "fit" and r ~= "max" and not (type(r) == "table" and math.type(r[1]) == "integer"
+      and math.type(r[2]) == "integer" and r[1] >= 40 and r[2] >= 12) then
+      return nil, 'resolution must be "fit", "max" or { width, height } (at least { 40, 12 })'
     end
   end
   if type(c.beep) ~= "boolean" then return nil, "beep must be true or false" end

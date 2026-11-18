@@ -24,7 +24,7 @@ local rs = Gen.redstone()
 local reactor = Gen.reactor{ heat = 0, maxHeat = 10000, output = 300000, produces = false }
 local world = { gen = 300000, load = 100000 }
 local function step(dt)
-  local on = (rs.out[2] or 0) > 0
+  local on = (rs.out[2] or 0) > 0 or world.stuck
   reactor.state.produces = on
   local inEut = on and world.gen or 0
   local s = lsc.state
@@ -88,7 +88,10 @@ run(cfgPath, 6000, function(_, t)
   end
   if not seen.onAt and (rs.out[2] or 0) > 0 then seen.onAt, seen.fillOn = t, lsc.state.stored / CAP end
   if seen.onAt and not seen.running and t > seen.onAt + 30 then
-    seen.running = M.find("running", 30) and M.find("300.00k EU/t", 30) and M.find("ON    auto:", 30)
+    local x, y = M.find("Vac nuke", 30)
+    local row = y and M.row(y) or ""
+    seen.running = x and row:find("ON     running   300.00k EU/t   heat 0%", 1, true) and row:find("auto:", 1, true)
+      and not M.find("Vac reactor", 30)
   end
   if seen.onAt and not seen.offAt and (rs.out[2] or 0) == 0 then seen.offAt, seen.fillOff = t, lsc.state.stored / CAP end
 end)
@@ -96,7 +99,7 @@ H.screen("lumen-control")
 check(seen.standby and seen.standby.row and seen.standby.signal == 0, "off above 90%, waiting between the marks")
 check(seen.standby.eta, "the panel says it's standby while it drains")
 check(seen.onAt and seen.fillOn < 0.305 and seen.fillOn > 0.28, ("switched on at 30%% (%.1f%%)"):format((seen.fillOn or 0) * 100))
-check(seen.running, "POWER: the reactor running at 300k EU/t, the switch on")
+check(seen.running, "POWER: one row for the switch and its reactor: on, running at 300k EU/t, auto")
 check(seen.offAt and seen.fillOff > 0.895, ("switched off again at 90%% (%.1f%%)"):format((seen.fillOff or 0) * 100))
 check(not seen.driftAlert, "no drain alert all cycle, though the LSC's hour says empty in under 2 hours")
 check(M.beeps == 0, "and no beeps")
@@ -126,6 +129,24 @@ run(cfgPath, M.time + 30, function(n)
 end)
 check(M.find("auto:", swY), "AUTO: back to following the fill")
 
+-- Switched off, but the reactor keeps running (wired wrong): the row says so once it's had time to stop.
+world.stuck = true
+local tOff = M.time
+run(cfgPath, M.time + 30, function(n, t)
+  if n == 2 then return tapText(" OFF ", swY, 120) end
+  if not seen.early and M.find("by hand: set OFF", swY) then seen.early = M.find("STILL RUNNING", swY) or "none" end
+  if t > tOff + 20 and not seen.stuck then
+    local sx, sy = M.find("STILL RUNNING", swY)
+    seen.stuck = sx and M.row(sy):find("Vac nuke", 1, true) and { fg = M.fgAt(sx, sy) } or nil
+  end
+end)
+check(seen.early == "none", "just switched off: no STILL RUNNING yet")
+check(seen.stuck and seen.stuck.fg == require("lumen.frame").C.bad, "off and still running: STILL RUNNING on its row, in red")
+world.stuck = false
+run(cfgPath, M.time + 30, function(n)
+  if n == 2 then return tapText(" AUTO ", swY, 120) end
+end)
+
 ---------------------------------------------------------------- the LSC's page
 run(cfgPath, M.time + 60, function(n)
   if n == 2 then return tapText("Main", 3) end
@@ -146,6 +167,7 @@ M.oob = 0
 run(cfgPath, M.time + 20)
 H.screen("lumen-control-tier2")
 check(M.oob == 0 and M.find("POWER", 3) and M.find(" AUTO ", 3), "tier 2: POWER fits, with its buttons")
+check(M.find("running", 3) or M.find("idle", 3), "tier 2: the reactor's state on the switch's row")
 run(cfgPath, M.time + 20, function(n) if n == 2 then return tapText("Main", 3) end end)
 H.screen("lumen-detail-tier2")
 check(M.oob == 0 and M.find("◀ BACK", 3) and M.find("LAST 24 H", 3), "tier 2: the LSC's page fits")

@@ -9,7 +9,7 @@ names any setting that's wrong.
 |---|---|---|
 | `interval` | `5` | Seconds between readings |
 | `names` | `{}` | Names for LSCs, by the start of their address: `{ ["d2440f27"] = "Main" }`. Unnamed ones show as `LSC d244` (the first four characters of the address). `lumen-discover --read` shows the addresses |
-| `resolution` | `nil` | `{ width, height }`: fewer, bigger characters, for a wall of screens (`{ 80, 25 }` doubles their size). `nil` means the screen's largest |
+| `resolution` | `"fit"` | `"fit"`: the largest resolution with the screen's shape in blocks, so the text fills it (7 wide, 3 tall: 160 × 33). `"max"`: the GPU's largest, whatever the shape. `{ width, height }`: fewer, bigger characters (`{ 80, 25 }` doubles their size) |
 | `lowFill` | `25` | Warn when an LSC is below this % full |
 | `criticalFill` | `10` | Bad below this % full |
 | `drainWarnHours` | `4` | Warn when an LSC is draining and will be empty within this many hours |
@@ -69,7 +69,7 @@ control = {
 | `strength` | `15` | Redstone: the signal's strength when on |
 | `onBelow`, `offAbove` | | On below this % full, off above this % |
 | `lsc` | all LSCs | Follow one LSC, by name |
-| `source` | | The source it switches: warns when on and it isn't running, or off and it is |
+| `source` | | The source it switches: shown on the switch's row (not a row of its own); warns when on and it isn't running, or off and it is |
 | `minSwitch` | `60` | Seconds to wait after switching before switching again |
 | `fault` | | Optional: a redstone signal from what it runs that means trouble ([setup](setup.md#fault-inputs)), below |
 

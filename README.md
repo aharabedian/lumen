@@ -36,7 +36,7 @@ Then **`lumen-setup`**, and run **`lumen`**. What you need, switches and the scr
 | Program | Does |
 |---|---|
 | `lumen` | The power screen: every LSC's fill, flows, time to full or empty, history and the last 24 hours; generators and reactors; switches; alerts. Optionally reports to LENS |
-| `lumen-setup` | Asks about your LSCs, generators, switches, alerts and LENS, and writes `/home/lumen.cfg` |
+| `lumen-setup` | A touchscreen editor (or questions on the terminal) for your LSCs, generators, switches, alerts and LENS; writes `/home/lumen.cfg` |
 | `lumen-discover` | Lists components and their methods; `--read` shows what an LSC (or any GT machine) reports; `--probe` reads IC2 reactors and transposers |
 | `lumen-update` | Installs and updates LUMEN |
 

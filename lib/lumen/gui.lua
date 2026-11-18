@@ -9,6 +9,10 @@
   ui.restore()                 back to plain terminal colors
   Gui.C                        the color palette
   Gui.len(s), Gui.fit(s, n), Gui.rfit(s, n)   text helpers (also on ui)
+  Gui.resolution(maxW, maxH, bw, bh) -> w, h   the largest resolution with the shape of a screen bw x bh blocks
+                               (characters are twice as tall as wide; about 1/8 block of border at each edge)
+  Gui.size(component, resolution) -> w, h       what to draw at: resolution "fit" (the screen's shape, from
+                               screen.getAspectRatio; the largest if it doesn't say), "max", or { w, h }
 ]]
 
 local unicode = require("unicode")
@@ -40,6 +44,23 @@ function Gui.rfit(s, n)
   local l = unicode.len(s)
   if l >= n then return unicode.sub(s, 1, n) end
   return string.rep(" ", n - l) .. s
+end
+
+function Gui.resolution(maxW, maxH, bw, bh)
+  if not (bw and bh) or bw <= 0 or bh <= 0 then return maxW, maxH end
+  local ratio = 2 * (bw - 0.25) / (bh - 0.25)
+  local w, h = math.floor(maxH * ratio + 0.5), maxH
+  if w > maxW then w, h = maxW, math.floor(maxW / ratio + 0.5) end
+  return math.max(1, math.min(maxW, w)), math.max(1, math.min(maxH, h))
+end
+
+function Gui.size(component, resolution)
+  local w, h = component.gpu.maxResolution()
+  if type(resolution) == "table" then return math.min(w, resolution[1]), math.min(h, resolution[2]) end
+  if resolution == "max" then return w, h end
+  local ok, bw, bh = pcall(function() return component.screen.getAspectRatio() end)
+  if ok then return Gui.resolution(w, h, bw, bh) end
+  return w, h
 end
 
 function Gui.new(gpu, W, H)

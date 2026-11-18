@@ -42,7 +42,7 @@ local function setup(answers)
   io.write = function(...) for _, s in ipairs({ ... }) do out[#out + 1] = tostring(s) end end -- luacheck: ignore 122
   local i = 0
   io.read = function() i = i + 1; return answers[i] end   -- luacheck: ignore 122 (nil after the last = Ctrl+D)
-  local ok, err = pcall(H.run, "lumen-setup.lua")
+  local ok, err = pcall(H.run, "lumen-setup.lua", "--text")
   print, io.write, io.read = realPrint, realWrite, realRead -- luacheck: ignore 121 122
   return table.concat(out), ok, err
 end

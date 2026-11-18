@@ -6,6 +6,12 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **`lumen-setup` on the touchscreen**: tabs for LSCs, sources, switches and general settings (alerts, LENS,
+  start on boot); tap a row to change it. For a row of reactors, **COPY** makes the next switch from the one
+  selected (the next name and the next free redstone block, the same side, marks and fault input); long
+  choices open a list; **READ** shows which sides of a block have a signal coming in, to find it. **SAVE** shows
+  the changes and warnings first (two switches on one output, a component not found...). `--text` (or a screen
+  under 80x25) asks the questions on the terminal as before.
 - **Fault inputs on switches** (`fault`): a redstone line from whatever a switch runs that means trouble, such
   as Steve's Factory Manager's error output on a vacuum reactor. A fault shows FAULT, raises a bad alert, and
   switches off until it clears; `latch` holds it until RESET on the screen (kept across restarts), `invert`
@@ -16,6 +22,20 @@ versions follow [Semantic Versioning](https://semver.org/).
   (heat/s and time to full, read twice 5 s apart).
 - **`lumen-discover --release`**: `setActive(false)` on each IC2 reactor. A computer's `setActive(true)` holds a
   reactor on whatever its redstone says, even after the computer is gone; this hands it back to its redstone.
+
+### Changed
+- **POWER shows a switch and its source as one row**: the switch's state, then what the reactor or generator is
+  doing (running, EU/t, heat). Off for 10 s while the source still makes power shows **STILL RUNNING** in red.
+  Twelve reactors on switches take twelve rows instead of twenty-four, and POWER may take up to a third of the
+  screen (was a quarter), so all twelve fit on a 160x50 screen (and on a 7 x 3 wall at 160x33).
+- **`resolution = "fit"` is the default**: the text fills the screen's shape, read from its size in blocks (a wall
+  7 wide, 3 tall gets 160 x 33 instead of 160 x 50 with black bars at the sides). `"max"` is the old behaviour;
+  `{ width, height }` still works. `lumen-setup`'s screen fits too, keeping at least 80 x 25.
+
+### Fixed
+- IC2 reactors showed "can't be read: no answer", and GT generators never showed as running. LUMEN skipped any
+  method that wasn't a Lua function, and in game a component's methods never are. The LSC's stored-EU fallback
+  had the same fault.
 
 ## [0.2.0] - 2026-11-13
 

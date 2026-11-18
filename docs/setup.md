@@ -4,7 +4,7 @@
 
 | Part | Why |
 |---|---|
-| A computer (tier 2 or better) with a GPU and screen | The display. A **tier 3** screen and GPU give the full layout (160 × 50); tier 2 works (80 × 25). Big multi-block screens look best with a lower `resolution` ([configuration](configuration.md)) |
+| A computer (tier 2 or better) with a GPU and screen | The display. A **tier 3** screen and GPU give the full layout (160 × 50); tier 2 works (80 × 25). LUMEN fits the text to the screen's shape (a 7 × 3 wall gets 160 × 33); a lower `resolution` gives bigger characters ([configuration](configuration.md)) |
 | An **adapter** on each LSC's controller block | How the computer reads the LSC. The adapter touches the controller, and the computer or a cable connects to the adapter |
 | Adapters on generators (optional) | To show them under POWER: a GT generator's controller (an LFTR, turbines...) or an IC2 reactor |
 | A **Redstone I/O** block or redstone card (optional) | For a [switch](#switches) that runs generators by a redstone signal. A GT generator can be switched through its adapter instead |
@@ -26,10 +26,12 @@ This installs the programs in `/home/bin` and the modules in `/home/lib/lumen`, 
 
 ## Run
 
-1. **`lumen-setup`** finds the LSCs, generators, reactors and redstone components the computer reaches and
-   asks: names, which generators to show, [switches](#switches), alert levels, LENS, and starting on boot. It
-   shows the file before saving `/home/lumen.cfg` (the old one is kept as `lumen.cfg.bak`). Run it again any
-   time; Enter keeps what's there. Everything it writes is in [configuration](configuration.md).
+1. **`lumen-setup`** finds the LSCs, generators, reactors and redstone components the computer reaches, and
+   opens [an editor on the screen](#the-setup-screen) for names, which generators to show,
+   [switches](#switches), alerts, LENS, and starting on boot. It shows what changes before saving
+   `/home/lumen.cfg` (the old one is kept as `lumen.cfg.bak`). `lumen-setup --text` (or a screen smaller than
+   80 × 25) asks the same on the terminal instead; Enter keeps what's there. Run it again any time. Everything
+   it writes is in [configuration](configuration.md).
 2. Run **`lumen`**. Tap **QUIT** or press Ctrl+C to stop.
 
 Without a config file, LUMEN shows every LSC with the default alerts. `lumen-discover --read` shows what an
@@ -48,14 +50,19 @@ LSC or generator reports, to check the adapters are connected.
   - time to full or empty, as the LSC itself works it out
   - the net over 5 minutes and over 1 hour, passive loss, and maintenance status
   - **a fill history chart** in whatever rows are left (one sample every 30 s, the last 80 minutes)
-- **POWER** (with sources or switches): a row per switch (ON, OFF or **FAULT**, why, for how long, and **AUTO / ON /
-  OFF**, with **RESET** for a latched fault) and per source (running or idle, EU/t, a reactor's heat, recipe progress, maintenance problems).
+- **POWER** (with sources or switches): a row per switch: ON, OFF or **FAULT**; what its `source` is doing (running
+  or idle, EU/t, a reactor's heat); why and for how long; **AUTO / ON / OFF**, with **RESET** for a latched fault.
+  When the switch has been off for 10 s and its source still makes power (wired wrong?), the row says **STILL
+  RUNNING** in red. Sources no switch names get a row of their own (running or idle, EU/t, heat, recipe progress,
+  maintenance problems).
 - **Alerts:** bad ones first, each with how long it has lasted. They clear themselves a minute after the
   problem goes away. A new bad alert beeps once.
 
 ![Three LSCs, with alerts](images/lumen-three.png)
 
 ![A vacuum reactor on a switch](images/lumen-control.png)
+
+![Twelve reactors on a wall of screens 7 wide, 3 tall (160 × 33)](images/lumen-wall.png)
 
 **Tap an LSC** (or All LSCs) for its page: fill history over **80 MIN**, **8 H** or **24 H**, its averages over 5 s,
 5 min and 1 h, time to full or empty, passive loss, maintenance, wireless, capacitors, and **the last 24 hours**
@@ -67,6 +74,29 @@ on. **BACK** returns. History survives a restart (in `/home/lumen-state.cfg`).
 On a tier 2 screen, panels keep the essentials:
 
 ![Tier 2](images/lumen-tier2.png)
+
+## The setup screen
+
+![lumen-setup on a tier 2 screen: 12 reactor switches](images/lumen-setup.png)
+
+| Tab | Tap a row to |
+|---|---|
+| **LSCS** | Name it |
+| **SOURCES** | Show a GT machine or not; name it (reactors always show); warn when it stops (**always on**) |
+| **SWITCHES** | Change it: name, marks, **REDSTONE** (block, side, **SIGNAL = STOP**) or **GT MACHINE**, the LSC it follows, its source, its [fault input](#fault-inputs). **+ NEW**, **COPY**, **DELETE** |
+| **GENERAL** | Alert levels, beep, LENS, start on boot; below, the warnings |
+
+Tap a field to type (Enter keeps it, Esc cancels). A choice ending in ▸ opens a list, saying who already uses
+each block. **RESCAN** looks for components again; **TEXT SETUP** switches to the questions.
+
+**Many reactors:** set one switch up, then **COPY** it for each of the others: the copy gets the next name
+(MOX 1, MOX 2...) and the next redstone block no switch uses, with the same side, marks and fault input (moved
+to the new block when it read the old one's). Then check each one's block and pick its source. To tell blocks
+apart, put a lever against one (or trip what it watches) and tap **READ**: it shows which sides of the
+switch's blocks have a signal coming in. An Analyzer shows a block's address too.
+
+**SAVE** lists what changes and warns before writing: a component not found, two switches on one output, a
+fault read on a side a switch drives, a source or LSC a switch names that isn't there.
 
 ## Switches
 
