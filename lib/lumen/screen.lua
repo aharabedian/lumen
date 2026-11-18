@@ -8,7 +8,7 @@
 
   model = {
     now, version, health = "ok" | "warn" | "bad", missingConfig = bool, lens = "port 4243 as lumen" | nil,
-    page = "main" | "lsc" | "group" | "energy",
+    page = "main" | "lsc" | "group" | "energy" | "timeline",
     total = reading | nil,           power.total: shown first, full width, when there are several LSCs
     lscs = { reading... },           lumen.power readings, each with history = { fill (0..1)... }, oldest first,
                                      and drainHow (lumen.alerts.drain's how: "standby"...)
@@ -18,11 +18,12 @@
     detail = (page "lsc") see lumen.pages.detail,
     group = (page "group") the group shown (lumen.pages.group),
     energy = (page "energy") lumen.energy.day's (lumen.pages.energy), time (the clock's now),
+    timeline = (page "timeline") lumen.timeline.build's, with offset (lumen.pages.timeline),
     glance = bool: big mode (lumen.pages.glance, nothing else)
   }
   actions = { quit(), open(address), back(), range(k), mode(switch name, "auto" | "on" | "off"), reset(switch name),
-    group(name) (its page), energy() (its page), view("tiles" | "rows"), glance() (BIG: big mode now; no button
-    without it), wake() }
+    group(name) (its page), energy() (its page), timeline() (its page), tlRange(k), tlFilter(id), tlOlder(), tlNewer(),
+    view("tiles" | "rows"), glance() (BIG: big mode now; no button without it), wake() }
 
   A header (health, the total's fill and net, QUIT), then the page: lumen.pages.main or lumen.pages.detail.
 ]]
@@ -34,6 +35,7 @@ local detailPage = require("lumen.pages.detail")
 local groupPage = require("lumen.pages.group")
 local glancePage = require("lumen.pages.glance")
 local energyPage = require("lumen.pages.energy")
+local timelinePage = require("lumen.pages.timeline")
 
 local screen = {}
 
@@ -86,11 +88,15 @@ function S:build(m, actions)
   if m.page == "lsc" and m.detail then detailPage.build(f, m, actions)
   elseif m.page == "group" and m.group then groupPage.build(f, m, actions)
   elseif m.page == "energy" and m.energy then energyPage.build(f, m, actions)
+  elseif m.page == "timeline" and m.timeline then
+    timelinePage.build(f, m, { back = actions.back, range = actions.tlRange, filter = actions.tlFilter,
+      older = actions.tlOlder, newer = actions.tlNewer })
   else mainPage.build(f, m, actions) end
   local foot = m.missingConfig and "No /home/lumen.cfg: defaults (see config/lumen.example.cfg)."
     or (m.page == "lsc" and "Tap a range for a longer history.")
     or (m.page == "group" and "Change the steps in lumen-setup: GROUPS.")
     or (m.page == "energy" and "The last 24 hours, kept across restarts. Sources come and go with lumen-setup.")
+    or (m.page == "timeline" and "Kept 7 days in /home/lumen-log.cfg, across restarts.")
     or (#(m.groups or {}) > 0 and "Tap an LSC for its history; a group for its ladder and order.")
     or "Tap an LSC for its history and the last 24 hours."
   f:text(2, self.h, Gui.fit(foot, self.w - 2), C.dim)

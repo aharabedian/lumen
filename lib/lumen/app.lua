@@ -1,20 +1,21 @@
 --[[ lumen.app: the lumen program's state and reactions, without the event loop (src/lumen.lua has that).
 
   local app = require("lumen.app").new(cfg, env)
-    cfg: lumen.config output. env = { component, gpu, w, h, modem?, beep?, filesystem?, computer?, statePath? }
-    modem: used only when cfg.lensPort is set. statePath: lumen.state's file (nil: nothing kept between runs);
-    filesystem and computer: for its clock.
+    cfg: lumen.config output. env = { component, gpu, w, h, modem?, beep?, filesystem?, computer?, statePath?,
+    logPath? } modem: used only when cfg.lensPort is set. statePath: lumen.state's file (nil: nothing kept between
+    runs); filesystem and computer: for its clock. logPath: lumen.log's file (nil: the log is kept in memory).
   app:start(now)                     announce to LENS (if reporting), then the first reading
   app:tick(now)                      every cfg.interval seconds: read LSCs and sources, switch, history, alerts,
                                      beep, redraw, report; save state every 5 minutes
-  app:onTouch(x, y, now)             tap the screen, redraw (and save at once when a switch's mode changed); in big
-                                     mode a tap only wakes it
+  app:onTouch(x, y, now, player?)    tap the screen, redraw (and save at once when a switch's mode changed); in big
+                                     mode a tap only wakes it. What it changes goes in the log with the player's name
   app:senseDue() -> time | nil       when to ask the radar next (big mode: every 2 s)
   app:sense(now)                     ask them: someone arriving wakes big mode; someone near keeps it awake
   app:onModem(port, data)            a packet: answers the LENS hub's hello
   app:stop()                         saves state, closes LENS, restores the screen
   app.running, app.readings, app.total, app.sources, app.control (lumen.control), app.history (lumen.history),
-  app.alerts (lumen.alerts tracker), app.screen, app.lens, app.page ("main" | "lsc" | "group" | "energy"), app.lsc,
+  app.alerts (lumen.alerts tracker), app.screen, app.lens, app.log (lumen.log), app.page ("main" | "lsc" | "group" |
+  "energy" | "timeline"), app.lsc,
   app.range, app.group (a group's name), app.view ("tiles" | "rows" | nil: tiles when they all fit; kept),
   app.big (big mode: lumen.pages.glance at a coarser resolution, app.bigScreen), app.presence (lumen.presence)
   app.glanceSize(w, h, scale) -> w, h   big mode's resolution: w / scale (40 at least), the same shape
@@ -30,6 +31,9 @@
 
 local alerts = require("lumen.alerts")
 local energy = require("lumen.energy")
+local log = require("lumen.log")
+local timeline = require("lumen.timeline")
+local timelinePage = require("lumen.pages.timeline")
 local control = require("lumen.control")
 local history = require("lumen.history")
 local power = require("lumen.power")
@@ -66,6 +70,8 @@ function app.new(cfg, env)
   local time = self:time()
   local fresh = self.clock and self.clock.real and type(saved.saved) == "number" and time - saved.saved < KEEP_HISTORY
   self.history = history.new(fresh and saved.history or nil)
+  self.log = log.new(env.logPath, time)
+  self.tl = { range = 2, filter = "all", offset = 0 }
   self.power = power.new(env.component, cfg)
   self.sourceReader = sources.new(env.component, cfg)
   self.control = control.new(env.component, cfg, saved)
@@ -77,11 +83,20 @@ function app.new(cfg, env)
   self.big = false
   self.lens = Telemetry.open(cfg, env.modem)
   self.actions = {
-    quit = function() self.running = false end,
+    quit = function()
+      self.running = false
+      self.log:add(self:time(), "STOP", "LUMEN", "QUIT on the screen", self.player)
+      self.quitLogged = true
+    end,
     open = function(address) self.page, self.lsc, self.range = "lsc", address, 1 end,
     back = function() self.page = "main" end,
     group = function(name) self.page, self.group = "group", name end,
     energy = function() self.page = "energy" end,
+    timeline = function() self.page, self.tl.offset = "timeline", 0 end,
+    tlRange = function(k) self.tl.range = k end,
+    tlFilter = function(id) self.tl.filter, self.tl.offset = id, 0 end,
+    tlOlder = function() self.tl.offset = self.tl.offset + math.max(1, self.tl.page or 10) end,
+    tlNewer = function() self.tl.offset = math.max(0, self.tl.offset - math.max(1, self.tl.page or 10)) end,
     view = function(v) self.view, self.dirty = v, true end,
     glance = function() self:goBig(self.now or 0, true) end,
     wake = function() self:wake(self.now or 0) end,
@@ -127,6 +142,13 @@ function App:model(now)
     switches = self.control.list, sources = self.sources, groups = self.control.groups, hours = self.onTime,
     view = self.view, glance = self.big,
   }
+  if self.page == "timeline" then
+    m.time = self:time()
+    local cols = timelinePage.cols(self.env.w)
+    m.timeline = timeline.build(self.history, self.log, m, m.time, self.tl.range, self.tl.filter, cols)
+    self.tl.offset = math.max(0, math.min(self.tl.offset, #m.timeline.events - 1))
+    m.timeline.offset = self.tl.offset
+  end
   if self.page == "energy" then
     m.time = self:time()
     m.energy = energy.day(self.history, m.time, m)
@@ -179,8 +201,19 @@ function App:sense(now)
   elseif was == false then self:wake(now) end         -- someone arrived
 end
 
+-- What control did, into the log (and each switch's state into history).
+function App:record(player)
+  local time = self:time()
+  for _, ev in ipairs(self.control:drain()) do
+    local mine = player and (ev.kind == "HAND" or ev.kind == "RESET")
+    self.log:add(time, ev.kind, ev.name, ev.text, mine and player or nil)
+  end
+  for _, s in ipairs(self.control.list) do self.history:state(s.name, timeline.code(s) or "err", time) end
+end
+
 function App:start(now)
   self.active = now
+  self.log:add(self:time(), "START", "LUMEN", ("started (v%s); switches read as they were"):format(VERSION))
   self:lensCall(Telemetry.announce)
   self:tick(now)
 end
@@ -202,6 +235,7 @@ function App:tick(now)
   self.sources = self.sourceReader:read()
   self.onTime = self.history:day("", time).on
   self.control:update(self.readings, self.total, now, { sources = self.sources, onTime = self.onTime })
+  self:record()
   local latched = {}
   for name in pairs(self.control:faults()) do latched[#latched + 1] = name end
   for name, why in pairs(self.control:trips()) do
@@ -220,7 +254,12 @@ function App:tick(now)
     r.history = h:chart(r.address, 1)
   end
   h:keep(keep)
-  for _, s in ipairs(self.control.list) do h:switch(s.name, s.on, time, dt) end
+  local switches = {}
+  for _, s in ipairs(self.control.list) do
+    h:switch(s.name, s.on, time, dt)
+    switches[s.name] = true
+  end
+  h:keepStates(switches)
   local names = {}
   for _, src in ipairs(self.sources) do
     names[src.name] = true
@@ -233,7 +272,22 @@ function App:tick(now)
   for _, r in ipairs(all) do
     if r.ok then r.drainSeconds, r.drainHow = alerts.drain(r, self.cfg, ctx) end
   end
+  local before = {}
+  for _, a in ipairs(self.alerts.list) do before[a.id] = a end
   local new = self.alerts:update(alerts.evaluate(self.readings, self.cfg, ctx), now)
+  local shownNow = {}
+  for _, a in ipairs(self.alerts.list) do
+    shownNow[a.id] = true
+    for _, id in ipairs(new) do
+      -- a switch's fault or trip is in the log already, as the switch's
+      if a.id == id and not id:find("^fault:") and not id:find("^trip:") then
+        self.log:add(time, a.level == "bad" and "BAD" or "WARN", "alert", a.text)
+      end
+    end
+  end
+  for id, a in pairs(before) do
+    if not shownNow[id] and not id:find("^fault:") and not id:find("^trip:") then self.log:add(time, "GONE", "alert", a.text) end
+  end
   if self.cfg.beep and self.env.beep then
     local bad = false
     for _, a in ipairs(self.alerts.list) do
@@ -256,10 +310,13 @@ function App:tick(now)
   self:redraw(now)
 end
 
-function App:onTouch(x, y, now)
+function App:onTouch(x, y, now, player)
   if self.big then self:wake(now); return end      -- a tap in big mode only wakes it
   self.active = now
+  self.player = player
   self.screen:tap(x, y)
+  self:record(player)
+  self.player = nil
   if self.dirty then self:save() end
   if self.running then self:redraw(now) end
 end
@@ -269,6 +326,9 @@ function App:onModem(port, data)
 end
 
 function App:stop()
+  local time = self:time()
+  if not self.quitLogged then self.log:add(time, "STOP", "LUMEN", "stopped") end
+  for _, s in ipairs(self.control.list) do self.history:state(s.name, "gone", time) end
   self:save()
   if self.lens then pcall(Telemetry.close, self.lens) end
   self.screen:restore()

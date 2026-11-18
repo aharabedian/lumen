@@ -30,6 +30,7 @@ docs-images: screens
 	cp build/screens/lumen-group.png docs/images/lumen-group.png
 	cp build/screens/lumen-big.png docs/images/lumen-big.png
 	cp build/screens/lumen-energy.png docs/images/lumen-energy.png
+	cp build/screens/lumen-timeline.png docs/images/lumen-timeline.png
 	cp build/screens/lumen-setup-pair.png docs/images/lumen-setup-pair.png
 	cp build/screens/lumen-detail.png docs/images/lumen-detail.png
 	cp build/screens/lumen-fault.png docs/images/lumen-fault.png

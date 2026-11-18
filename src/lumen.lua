@@ -33,10 +33,11 @@ end
 local gpu = component.gpu
 local w, h = Gui.size(component, cfg.resolution)
 -- What LUMEN keeps between runs (switches set by hand, history) goes next to the config file.
-local statePath = (path:match("^(.*)/[^/]*$") or ".") .. "/lumen-state.cfg"
+local dir = path:match("^(.*)/[^/]*$") or "."
+local statePath = dir .. "/lumen-state.cfg"
 local app = App.new(cfg, { component = component, gpu = gpu, w = w, h = h,
   modem = cfg.lensPort and component.modem or nil, beep = computer.beep,
-  filesystem = filesystem, computer = computer, statePath = statePath })
+  filesystem = filesystem, computer = computer, statePath = statePath, logPath = dir .. "/lumen-log.cfg" })
 splash.show(gpu, w, h, "LUMEN", require("lumen.version"), Gui.C.accent)
 os.sleep(splash.SECONDS)   -- yields: OpenOS keeps running while the logo shows
 
@@ -50,7 +51,7 @@ local function main()
     local now = computer.uptime()
     if ev[1] == "touch" then
       -- touch: screenAddress, x, y, button, player
-      app:onTouch(math.floor(ev[3]), math.floor(ev[4]), now)
+      app:onTouch(math.floor(ev[3]), math.floor(ev[4]), now, ev[6])
     elseif ev[1] == "modem_message" then
       -- modem_message: localAddress, remoteAddress, port, distance, payload
       app:onModem(ev[4], ev[6])

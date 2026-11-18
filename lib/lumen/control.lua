@@ -36,6 +36,8 @@
   c:trips() -> { [name] = why | { rearm = % } }   heat trips and raised marks after a RESET, to keep across
                                       restarts
   c:groupSteps() -> { [group] = { bool... } }   which steps are on, to keep across restarts
+  c:drain() -> { { name, kind, text }... }   what happened since the last drain, for lumen.log: "ON" / "OFF" (and
+                                      why), "FAULT" / "CLEAR", "TRIP", "RESET", "HAND" (a mode set on the screen)
 
   A fault (with stop, the default) switches off at once, whatever the mode, and holds it off while it lasts;
   once it clears, auto waits minSwitch as after any switch. latch: a fault stays until RESET. A fault input
@@ -77,7 +79,7 @@ function control.new(component, cfg, kept)
   kept = type(kept) == "table" and kept or {}
   local modes, faults = kept.modes or {}, kept.faults or {}
   local trips, steps = kept.trips or {}, kept.groups or {}
-  local self = setmetatable({ component = component, cfg = cfg, list = {}, groups = {}, at = {} }, C)
+  local self = setmetatable({ component = component, cfg = cfg, list = {}, groups = {}, at = {}, events = {} }, C)
   local byName = {}
   for _, g in ipairs(cfg.groups or {}) do
     local saved = type(steps[g.name]) == "table" and steps[g.name] or {}
@@ -157,6 +159,14 @@ function C:readFault(s)
   return ((tonumber(v) or 0) > 0) ~= (f.invert == true)
 end
 
+function C:event(s, kind, text) self.events[#self.events + 1] = { name = s.name, kind = kind, text = text } end
+
+function C:drain()
+  local out = self.events
+  self.events = {}
+  return out
+end
+
 function C:checkFault(s, now)
   local f = s.fault
   if not f then return end
@@ -164,12 +174,14 @@ function C:checkFault(s, now)
   if f.signal and s.cfg.fault.latch then f.latched = true end
   local on = f.signal == true or f.latched
   if on and (not f.on or not f.since) then f.since = now end   -- a latched fault kept from the last run: from now
+  if on and not f.on then self:event(s, "FAULT", s.cfg.fault.latch and "fault signal (latched)" or "fault signal")
+  elseif f.on and not on then self:event(s, "CLEAR", "fault gone") end
   f.on = on
 end
 
 local RISE_WINDOW, RISE_MIN, REARM = 60, 30, 5
 
-local function checkTrip(s, src, now)
+local function checkTrip(self, s, src, now)
   local t = s.trip
   if not t then return end
   t.heat = (src and src.ok and src.heat) and src.heat * 100 or nil
@@ -188,7 +200,10 @@ local function checkTrip(s, src, now)
     local rate = (pct - samples[1][2]) / (now - samples[1][1]) * 60
     if rate >= sw.heatRise then why = ("heat rising %.1f%% a minute, trips at %g%%"):format(rate, sw.heatRise) end
   end
-  if why then t.on, t.why, t.since = true, why, now end
+  if why then
+    t.on, t.why, t.since = true, why, now
+    self:event(s, "TRIP", why)
+  end
 end
 
 function C:writeOutput(s, on)
@@ -255,7 +270,10 @@ function C:apply(s, now, force)
     local ok, werr = self:writeOutput(s, want)
     if not ok then s.err = werr; return end
   end
-  if want ~= s.on then s.since, s.switched = now, now end
+  if want ~= s.on then
+    s.since, s.switched = now, now
+    if s.on ~= nil then self:event(s, want and "ON" or "OFF", s.why) end
+  end
   s.on = want
 end
 
@@ -334,7 +352,7 @@ function C:update(readings, total, now, extra)
     local r = followed(s, readings, total)
     s.fill = (r and r.ok and r.fill) or nil
     self:checkFault(s, now)
-    checkTrip(s, s.source and srcs[s.source], now)
+    checkTrip(self, s, s.source and srcs[s.source], now)
   end
   if self.looked then    -- the first look only reads the outputs as they are
     for _, g in ipairs(self.groups) do decideGroup(g, readings, total, now, extra.onTime) end
@@ -352,6 +370,7 @@ end
 function C:setMode(name, mode, now)
   for _, s in ipairs(self.list) do
     if s.name == name and (mode == "auto" or mode == "on" or mode == "off") then
+      if s.mode ~= mode then self:event(s, "HAND", ("set %s (was %s)"):format(mode:upper(), s.mode:upper())) end
       s.mode = mode
       self:apply(s, now, true)           -- a choice on the screen doesn't wait for minSwitch
     end
@@ -363,10 +382,12 @@ function C:reset(name, now)
     if s.name == name then
       local t, any = s.trip, false
       if s.fault and s.fault.latched then
+        self:event(s, "RESET", "latched fault reset")
         s.fault.latched, any = false, true
         self:checkFault(s, now)
       end
       if t and t.on then
+        self:event(s, "RESET", "heat trip reset (" .. tostring(t.why) .. ")")
         t.on, t.why, t.since, t.samples, any = false, nil, nil, {}, true
         local mark = s.cfg.heatTrip
         if mark and t.heat and t.heat >= mark then t.rearm = math.min(100, t.heat + REARM) end
