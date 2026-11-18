@@ -123,11 +123,17 @@ add({ tap("MOX 1 ", 4), tap(" ON ", DET + 5), tapField("rising", 8, DET + 5) })
 add(typed("5"))
 seen(function() found.trip = M.find("at 90 % heat, or rising 5 ", DET + 5) end)
 
+-- MOX 12 is a breeder that always runs: no marks, ON / OFF on the screen.
+add({ tap("MOX 12 ", 4), tap("by fill ▸", DET + 1) })
+seen(function() found.runsPick = M.find("How MOX 12 runs", 1) and M.find("always", 3) and M.find("by fill", 3) end)
+add({ tap("ON / OFF on the screen; faults", 3) })
+seen(function() found.always = M.find("always ▸", DET + 1) and M.find("ON / OFF on the screen", DET + 1) and M.find("no fill", DET + 4) end)
+
 ---------------------------------------------------------------- a group
 add({ tap(" GROUPS 0 ", 2), tap(" + NEW ", FOOT), tapField("Name", 9, DET) })
 add(typed("Nuclear", 7))
 add({ tap(" ADD EVERY SWITCH ", DET) })
-seen(function() found.joined = M.find("12 switches joined Nuclear.", DET) and M.find("12: MOX 1, MOX 2", DET) end)
+seen(function() found.joined = M.find("11 switches joined Nuclear.", DET) and M.find("11: MOX 1, MOX 2", DET) end)
 add({ tapField("off above", 10, DET + 3) })
 add(typed("95", 3))
 add({ tapField("below", 6, DET + 3) })
@@ -183,7 +189,8 @@ local ok, err = setup()
 check(ok, "lumen-setup's screen runs" .. (ok and "" or (": " .. tostring(err))))
 check(found.up and found.down, "▲ and ▼ move a switch")
 check(found.trip, "a heat trip: 90% (the default), or rising 5% a minute")
-check(found.joined, "a group, named; ADD EVERY SWITCH")
+check(found.runsPick and found.always, "Runs ▸: by fill, always or a group; MOX 12 always on")
+check(found.joined, "a group, named; ADD EVERY SWITCH adds the 11 that run by their own marks")
 check(found.group, "two steps: 4 below 90%, 10 below 75%")
 check(found.explained, "PAIR explains what it will do before START")
 check(found.allOff, "START: every switch off first")
@@ -204,7 +211,8 @@ check(g and g.name == "Nuclear" and #g.steps == 2 and g.steps[1].onBelow == 90 a
   and g.steps[2].onBelow == 75 and g.steps[2].offAbove == 85 and g.steps[2].run == 6, "the group and its steps saved")
 local members = 0
 for _, s in ipairs(c.control) do if s.group == "Nuclear" then members = members + 1 end end
-check(members == 12, "every switch in it")
+check(members == 11 and sw["MOX 12"].always == true and sw["MOX 12"].group == nil and sw["MOX 12"].onBelow == nil
+  and sw["MOX 1"].onBelow == nil, "11 in the group, MOX 12 always on; none of them with marks")
 check(sw["MOX 1"].source == "Reactor e001" and sw["MOX 2"].source == "Reactor e005" and sw["MOX 5"].source == "Reactor e002"
   and sw["MOX 4"].source == nil and sw["MOX 6"].source == nil and sw["MOX 12"].source == nil, "the sources PAIR found, saved")
 

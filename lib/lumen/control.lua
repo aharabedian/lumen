@@ -15,9 +15,10 @@
   c.list = { {
       name, index (in cfg.control), mode = "auto" | "on" | "off", on = bool | nil (nil: can't tell), since (now
       when it last switched, or when LUMEN started), onBelow, offAbove (nil for a group's member without its
-      own), lsc (name followed; nil: all LSCs; a member follows its group's), source (name), group (name),
+      own, or always on), lsc (name followed; nil: all LSCs; a member follows its group's), source (name),
+      group (name), always (bool: on unless set OFF on the screen),
       fill (0..1 it follows, nil when unreadable), why (a few words: "below 30%", "holding: LSC unreadable",
-      "Nuclear: 10 needed"), err (text: can't be found or switched),
+      "standing by: 1 of 4 needed", "always on"), err (text: can't be found or switched),
       fault = nil (no fault input) | { on (a fault now: the signal, or latched), signal (bool; nil: unreadable),
         latched, since (when it began), err (text: the input can't be read) },
       trip = nil (no heatTrip or heatRise) | { on, why ("heat 91%, trips at 90%"), since, heat (% now, nil when
@@ -44,6 +45,9 @@
   off at once whatever the mode and stays tripped until RESET. A RESET while the heat is still at or over
   heatTrip lets it run (a reactor only cools while it runs) and trips 5 points higher until it falls below
   heatTrip. A source that can't be read trips nothing.
+
+  always: on whenever it isn't set OFF on the screen, faulted or tripped (after a fault or a trip, it waits
+  minSwitch before running again); no marks.
 
   Auto: on below onBelow %, off above offAbove %, unchanged in between (so it doesn't flicker). It waits
   minSwitch seconds (default 60) after switching before switching again, and holds while it can't read the fill. On start it
@@ -93,7 +97,7 @@ function control.new(component, cfg, kept)
     local G = sw.group and byName[sw.group]
     local s = { name = sw.name, index = i, mode = (mode == "on" or mode == "off") and mode or "auto",
       onBelow = sw.onBelow, offAbove = sw.offAbove, lsc = G and G.lsc or sw.lsc, source = sw.source,
-      group = G and G.name or nil, cfg = sw,
+      group = G and G.name or nil, always = sw.always == true and not G or nil, cfg = sw,
       fault = sw.fault and { on = latched, latched = latched } or nil }
     if sw.heatTrip or sw.heatRise then
       local kept1 = trips[sw.name]
@@ -216,6 +220,12 @@ end
 local function decide(s, now, force)
   if s.trip and s.trip.on then return false, "heat trip" end
   if s.fault and s.fault.on and s.cfg.fault.stop then return false, "fault: stopped" end
+  if s.always and s.mode ~= "off" then
+    if not force and s.on == false and s.switched and now - s.switched < (s.cfg.minSwitch or 60) then
+      return false, "waiting to switch again"
+    end
+    return true, "always on"
+  end
   if s.mode ~= "auto" then return s.mode == "on", "set " .. s.mode:upper() .. " on the screen" end
   if s.group then
     if s.groupWant ~= nil then return s.groupWant, s.groupWhy end
@@ -291,15 +301,14 @@ local function decideGroup(g, readings, total, now, onTime)
   end
   g.need = need
   g.why = ("%d needed"):format(need)
-  for _, s in ipairs(pool) do
-    s.groupWhy = ("%s: %d needed%s"):format(g.name, need, s.on and "" or ", standing by")
-  end
+  local of = ("%d of %d needed"):format(need, #g.members)
+  for _, s in ipairs(pool) do s.groupWhy = s.on and of or ("standing by: " .. of) end
   if running < need then
     local k = need - running
     for _, s in ipairs(pool) do
       if k == 0 then break end
       if not s.on then
-        if ready(s, now) then s.groupWant, s.groupWhy = true, ("%s: %d needed, one more"):format(g.name, need)
+        if ready(s, now) then s.groupWant, s.groupWhy = true, "starting: " .. of
         else s.groupWhy = "waiting to switch again" end
         k = k - 1
       end
@@ -310,7 +319,7 @@ local function decideGroup(g, readings, total, now, onTime)
       local s = pool[i]
       if k == 0 then break end
       if s.on and ready(s, now) then
-        s.groupWant, s.groupWhy = false, ("%s: %d needed, one fewer"):format(g.name, need)
+        s.groupWant, s.groupWhy = false, "stopping: " .. of
         k = k - 1
       end
     end

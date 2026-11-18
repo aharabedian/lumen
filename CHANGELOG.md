@@ -15,8 +15,11 @@ versions follow [Semantic Versioning](https://semver.org/).
   A bad alert; LENS gets `lumen_switch_trip`.
 - **Groups** (`groups`, and `group` on a switch): a ladder of steps runs as many members as the fill needs; the
   least run time starts first (`rotate`), and a member that's faulted, tripped or set by hand is skipped. A line
-  per group on the main screen; tap it for its page (the ladder and who starts next). LENS gets
+  per group on the main screen with its members under it ("Not in a group" after); tap it for its page (the
+  ladder and who starts next). LENS gets
   `lumen_group_needed` and `lumen_group_running`.
+- **Always-on switches** (`always = true`): no marks, ON / OFF on the screen; faults and heat trips still stop it
+  (a breeder that should never stop). `lumen-setup`'s **Runs ▸** picks by fill, always, or a group.
 - **`lumen-setup`: PAIR** runs each redstone switch alone, after explaining and a START, to find which reactor it
   runs (crossed wiring, blocks that start nothing, and switches with a fault on are said), then puts every output
   back; APPLY sets the sources. **▲ ▼** order the switches (the order on the main screen), a **GROUPS** tab, and

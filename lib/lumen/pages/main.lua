@@ -1,11 +1,12 @@
 --[[ lumen.pages.main: the main page. A panel per LSC (the total first; tap one for its page), the switches and
   sources ("POWER"), then alerts.
 
-  POWER: a line per group (how many run and are needed; tap it for lumen.pages.group), then each switch with
-  its source, and each source no switch names, as TILES or ROWS (m.view; nil: tiles when there are 4 or more and
-  they all fit, else rows). A tile: its title on its own colour (red for an error, fault, heat trip, or a source
-  STILL RUNNING while its switch is off), what the source does and since when, its heat against its trip mark,
-  why, and RESET (a latched fault or a trip) with AUTO / ON / OFF. A row says the same on one line.
+  POWER: each switch with its source, and each source no switch names, as TILES or ROWS (m.view; nil: tiles
+  when there are 4 or more and they all fit, else rows). With groups, in sections: each group's line (how many
+  run and are needed; tap it for lumen.pages.group) with its members under it, then "Not in a group". A tile:
+  its title on its own colour (red for an error, fault, heat trip, or a source STILL RUNNING while its switch is
+  off), what the source does and since when, its heat against its trip mark, why, and RESET (a latched fault or
+  a trip) with AUTO / ON / OFF (ON / OFF for one that's always on). A row says the same on one line.
 
   main.build(f, m, actions)   f: lumen.frame; m, actions: lumen.screen's model and actions
   main.alerts(f, m, x, y, width, lastRow)   the alerts list (the detail page shows it too)
@@ -134,7 +135,8 @@ local function detailOf(f, s, short)
   if s.trip and s.trip.on then return since("heat trip: " .. (s.trip.why or "heat"), s.trip.since), C.bad end
   if s.fault and (s.fault.on or s.fault.err) then return faultText(f, s), C.bad end
   local d
-  if s.mode ~= "auto" then d = "by hand: " .. (s.why or "")
+  if s.always and s.mode ~= "off" then d = s.why == "always on" and "always on: ON / OFF on the screen" or (s.why or "")
+  elseif s.mode ~= "auto" then d = "by hand: " .. (s.why or "")
   elseif s.group then d = s.why or ("group " .. s.group)
   else
     d = ("auto: on below %g%%, off above %g%%"):format(s.onBelow, s.offAbove)
@@ -145,11 +147,15 @@ end
 
 local function latched(s) return (s.fault and s.fault.latched) or (s.trip and s.trip.on) end
 
--- AUTO / ON / OFF ending at column xr.
+-- AUTO / ON / OFF ending at column xr; ON / OFF in the same places for a switch that's always on (ON is its auto).
 local function modeButtons(f, xr, y, s, actions)
   local bx = xr - 16
-  bx = f:button(bx, y, "AUTO", function() actions.mode(s.name, "auto") end, s.mode == "auto")
-  bx = f:button(bx - 1, y, "ON", function() actions.mode(s.name, "on") end, s.mode == "on")
+  if s.always then
+    bx = f:button(bx + 7, y, "ON", function() actions.mode(s.name, "auto") end, s.mode ~= "off")
+  else
+    bx = f:button(bx, y, "AUTO", function() actions.mode(s.name, "auto") end, s.mode == "auto")
+    bx = f:button(bx - 1, y, "ON", function() actions.mode(s.name, "on") end, s.mode == "on")
+  end
   f:button(bx - 1, y, "OFF", function() actions.mode(s.name, "off") end, s.mode == "off")
   return xr - 16
 end
@@ -216,9 +222,13 @@ local function tile(f, it, x, y, w, m, actions)
   f:text(x + 1, y, "●", red and C.bg or (running and C.good or C.dim), tb)
   local badge = "no switch"
   if s then
-    local how = s.mode ~= "auto" and "by hand" or (s.group or "auto")
+    local how
+    if s.mode == "off" or (s.mode == "on" and not s.always) then how = "by hand"
+    elseif s.always then how = "always"
+    elseif s.group then if state == "OFF" then state = "STANDBY" end   -- its section names the group
+    else how = "auto" end
     if state == "FAULT" and s.fault.latched then how = "latched" end
-    badge = (state == "TRIP" or state == "ERROR") and state or (state .. " · " .. how)
+    badge = (state == "TRIP" or state == "ERROR" or not how) and state or (state .. " · " .. how)
   end
   f:text(x + 3, y, Gui.fit(s and s.name or src.name, w - Gui.len(badge) - 6), tf, tb)
   f:text(x + w - 1 - Gui.len(badge), y, badge, red and C.bg or (scol ~= C.dim and scol or C.dim), tb)
@@ -283,78 +293,118 @@ local function groupLine(f, g, x, y, width, actions)
   f:hit(x, y, x + width - 1, y, function() actions.group(g.name) end)
 end
 
--- POWER's items: each switch with its source, then the sources no switch names.
-local function powerItems(m)
-  local byName, used, out = {}, {}, {}
+-- POWER's sections: each group with its members, then the rest ({ group = nil, title = "Not in a group" }): the
+-- switches in lumen.cfg's order, then the sources no switch names. titled: draw the sections' lines (with groups).
+local function powerSections(m)
+  local byName, used = {}, {}
   for _, src in ipairs(m.sources or {}) do byName[src.name] = byName[src.name] or src end
+  local out, byGroup = {}, {}
+  for _, g in ipairs(m.groups or {}) do
+    out[#out + 1] = { group = g, items = {} }
+    byGroup[g.name] = out[#out]
+  end
+  local rest = { title = "Not in a group", items = {} }
   for _, s in ipairs(m.switches or {}) do
     local src = s.source and byName[s.source]
     if src then used[src] = true end
-    out[#out + 1] = { s = s, src = src }
+    local sec = s.group and byGroup[s.group] or rest
+    sec.items[#sec.items + 1] = { s = s, src = src }
   end
-  for _, src in ipairs(m.sources or {}) do if not used[src] then out[#out + 1] = { src = src } end end
-  return out
+  for _, src in ipairs(m.sources or {}) do if not used[src] then rest.items[#rest.items + 1] = { src = src } end end
+  if #rest.items > 0 then out[#out + 1] = rest end
+  return out, #(m.groups or {}) > 0
 end
 
--- How POWER is laid out at most `cap` rows: { view, rows, gap (between tile rows), cols, tw }.
-local function powerLayout(m, list, width, cap, h)
-  local groups = #(m.groups or {})
+-- Walk the sections from row `top` to `last` the way L lays them out, calling draw(kind, thing, y, col) when given
+-- ("header", section; "tile", item; "row", item). -> the last row used, how many items fit
+local function walk(secs, titled, L, top, last, draw)
+  local y, used, shown = top, top - 1, 0
+  for _, sec in ipairs(secs) do
+    if titled then
+      if y > last then return used, shown end
+      if draw then draw("header", sec, y) end
+      used, y = y, y + 1
+    end
+    if L.view == "tiles" then
+      for k = 1, #sec.items, L.cols do
+        if y + TILE_H - 1 > last then return used, shown end
+        for c = 0, L.cols - 1 do
+          local it = sec.items[k + c]
+          if it then
+            if draw then draw("tile", it, y, c) end
+            shown = shown + 1
+          end
+        end
+        used, y = y + TILE_H - 1, y + TILE_H + L.gap
+      end
+    else
+      for _, it in ipairs(sec.items) do
+        if y > last then return used, shown end
+        if draw then draw("row", it, y) end
+        used, y, shown = y, y + 1, shown + 1
+      end
+    end
+  end
+  return used, shown
+end
+
+-- How POWER is laid out in at most `cap` rows: { view, rows, gap (between tile rows), cols, tw, hidden }.
+local function powerLayout(m, secs, titled, width, cap, h)
   local cols, tw = tileGrid(width)
-  local tileRows = (#list + cols - 1) // cols
-  local function tilesNeed(gap) return 1 + groups + tileRows * TILE_H + math.max(0, tileRows - 1) * gap end
-  local gap = tilesNeed(1) <= cap and 1 or 0
-  local view = m.view
-  if not view then view = (#list >= 4 and tilesNeed(gap) <= cap) and "tiles" or "rows" end
-  local rows
-  if view == "tiles" then
-    rows = tilesNeed(gap)
-    if rows > cap then     -- as many rows of tiles as fit, and no rows left over
-      local fit = math.max(0, (cap - 1 - groups + gap) // (TILE_H + gap))
-      rows = math.max(1 + groups, 1 + groups + fit * TILE_H + math.max(0, fit - 1) * gap)
-    end
-  else
-    rows = math.min(1 + groups + #list, math.max(2, math.min(cap, h // 2)))
+  local L = { cols = cols, tw = tw }
+  local total = 0
+  for _, sec in ipairs(secs) do total = total + #sec.items end
+  local function need(view, gap)
+    L.view, L.gap = view, gap
+    return (walk(secs, titled, L, 2, math.huge))
   end
-  return { view = view, rows = rows, gap = gap, cols = cols, tw = tw }
+  local gap = need("tiles", 1) <= cap and 1 or 0
+  local view = m.view
+  if not view then view = (total >= 4 and need("tiles", gap) <= cap) and "tiles" or "rows" end
+  L.view, L.gap = view, view == "tiles" and gap or 0
+  local limit = view == "tiles" and cap or math.max(2, math.min(cap, h // 2))
+  local used, shown = walk(secs, titled, L, 2, limit)
+  L.rows, L.hidden = math.max(1, used), total - shown
+  return L
 end
 
-local function powerSection(f, m, list, L, x, y, width, actions)
-  local last = y + L.rows - 1
-  local by = y + 1
-  for _, g in ipairs(m.groups or {}) do
-    if by <= last then groupLine(f, g, x, by, width, actions) end
-    by = by + 1
+local function sectionLine(f, sec, x, y, width, actions)
+  if sec.group then return groupLine(f, sec.group, x, y, width, actions) end
+  f:text(x + 2, y, sec.title, C.accent)
+  local always, alone = 0, 0
+  for _, it in ipairs(sec.items) do
+    if it.s and it.s.always then always = always + 1 elseif not it.s then alone = alone + 1 end
   end
-  local shown = #list
-  if L.view == "tiles" then
-    local fitRows = math.max(0, (last - by + 1 + L.gap) // (TILE_H + L.gap))
-    shown = math.min(#list, fitRows * L.cols)
-    for i = 1, shown do
-      local col, row = (i - 1) % L.cols, (i - 1) // L.cols
-      tile(f, list[i], x + col * (L.tw + 2), by + row * (TILE_H + L.gap), L.tw, m, actions)
-    end
-  else
-    local room = last - by + 1
-    if #list > room then shown = math.max(0, room - 1) end
-    for i = 1, shown do
-      local it = list[i]
-      if it.s then switchRow(f, it.s, it.src, x, by + i - 1, width, actions) else sourceRow(f, it.src, x, by + i - 1, width) end
-    end
-    if shown < #list and room > 0 then f:text(x, by + shown, ("+%d more"):format(#list - shown), C.dim) end
-  end
+  local parts = {}
+  if always > 0 then parts[#parts + 1] = ("%d always on"):format(always) end
+  if #sec.items - always - alone > 0 then parts[#parts + 1] = ("%d by their own marks"):format(#sec.items - always - alone) end
+  if alone > 0 then parts[#parts + 1] = ("%d with no switch"):format(alone) end
+  f:text(x + 20, y, Gui.fit(table.concat(parts, " · "), width - 20), C.dim)
+end
+
+local function powerSection(f, m, secs, titled, L, x, y, width, actions)
+  walk(secs, titled, L, y + 1, y + L.rows - 1, function(kind, thing, ry, col)
+    if kind == "header" then sectionLine(f, thing, x, ry, width, actions)
+    elseif kind == "tile" then tile(f, thing, x + col * (L.tw + 2), ry, L.tw, m, actions)
+    elseif thing.s then switchRow(f, thing.s, thing.src, x, ry, width, actions)
+    else sourceRow(f, thing.src, x, ry, width) end
+  end)
 
   f:text(x, y, "POWER", C.accent)
-  local n, on, eu = 0, 0, 0
-  for _, it in ipairs(list) do
-    if it.src then
-      n = n + 1
-      if it.src.ok and it.src.active then on, eu = on + 1, eu + (it.src.output or 0) end
+  local n, on, eu, any = 0, 0, 0, 0
+  for _, sec in ipairs(secs) do
+    for _, it in ipairs(sec.items) do
+      any = any + 1
+      if it.src then
+        n = n + 1
+        if it.src.ok and it.src.active then on, eu = on + 1, eu + (it.src.output or 0) end
+      end
     end
   end
   local t = n > 0 and ("%d of %d running   %s EU/t"):format(on, n, si(eu)) or ""
-  if L.view == "tiles" and shown < #list then t = t .. ("   +%d more tiles"):format(#list - shown) end
+  if L.hidden > 0 then t = t .. ("   +%d more %s"):format(L.hidden, L.view == "tiles" and "tiles" or "rows") end
   f:text(x + 7, y, Gui.fit(t, math.max(0, width - 7 - 16)), C.dim)
-  if #list >= 2 then
+  if any >= 2 then
     local bx = f:button(x + width - 15, y, "TILES", function() actions.view("tiles") end, L.view == "tiles")
     f:button(bx - 1, y, "ROWS", function() actions.view("rows") end, L.view == "rows")
   end
@@ -386,9 +436,9 @@ function main.build(f, m, actions)
   local nAlerts = #(m.alerts or {})
   local alertRows = math.max(2, math.min(nAlerts + 1, math.max(2, f.h // 4)))
   local alertTop = f.h - alertRows
-  local list = powerItems(m)
-  local L = powerLayout(m, list, width, math.max(2, alertTop - 7), f.h)   -- the LSCs keep at least two rows
-  local powerRows = #list > 0 and L.rows or 0
+  local secs, titled = powerSections(m)
+  local L = powerLayout(m, secs, titled, width, math.max(2, alertTop - 7), f.h)   -- the LSCs keep at least two rows
+  local powerRows = #secs > 0 and L.rows or 0
   local powerTop = alertTop - powerRows - (powerRows > 0 and 1 or 0)
   local top, bottom = 3, powerTop - 2       -- panels go in rows top..bottom
 
@@ -416,7 +466,7 @@ function main.build(f, m, actions)
     end
   end
 
-  if powerRows > 0 then powerSection(f, m, list, L, 2, powerTop, width, actions) end
+  if powerRows > 0 then powerSection(f, m, secs, titled, L, 2, powerTop, width, actions) end
   main.alerts(f, m, 2, alertTop, width, f.h - 1)
 end
 

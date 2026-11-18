@@ -186,7 +186,8 @@ local function controlStep(c, env, readings, gts)
     for _, s in ipairs(c.control) do
       print(("  %s: %s, %s%s%s"):format(s.name,
         s.redstone and ("redstone " .. s.redstone .. " " .. tostring(s.side)) or ("GT machine " .. tostring(s.machine)),
-        s.group and ("in group " .. s.group) or ("on below %g%%, off above %g%%"):format(s.onBelow, s.offAbove),
+        s.group and ("in group " .. s.group) or (s.always and "always on")
+          or ("on below %g%%, off above %g%%"):format(s.onBelow, s.offAbove),
         s.heatTrip and (", trips at %g%% heat"):format(s.heatTrip) or "",
         s.fault and (", fault from redstone " .. tostring(s.fault.redstone) .. " " .. tostring(s.fault.side)) or ""))
     end

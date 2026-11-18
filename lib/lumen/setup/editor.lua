@@ -18,18 +18,21 @@
            (the next name, "MOX 1" -> "MOX 2", and the next redstone block or GT machine no switch uses; the
            rest copied but its source)   ed.deleteSwitch(i)   ed.moveSwitch(i, d) -> new i | nil (d: -1 up, 1 down)
            ed.setSwitch(i, field, value) -> true | nil, why   field: name, kind ("redstone" | "machine"),
-           redstone, machine, side, invert, onBelow, offAbove, lsc (nil = all), source (nil = none), group (nil =
-           none; leaving one gives back marks if it had none), heatTrip (whole %, nil = off), heatRise (whole % a
-           minute, nil = off)
+           redstone, machine, side, invert, onBelow, offAbove, lsc (nil = all), source (nil = none), runs ("marks":
+           its own on / off marks, back at 30-90% if it had none | "always": on unless OFF on the screen | a group's
+           name; always and a group drop its marks), group (nil = none, else as runs), heatTrip (whole %, nil =
+           off), heatRise (whole % a minute, nil = off)
            ed.pairSource(i, address) -> name | nil, why   a reactor (full address) as the switch's source
            ed.sourceName(address) -> name | nil           the source shown for a component, if any
            ed.setFault(i, field, value) -> true | nil, why    field: "on" (true adds one, false removes it),
            redstone, side, invert, latch, stop
            ed.choices(what, i) -> { value, label, note }[]    what: "redstone" | "faultRedstone" | "machine" |
-           "lsc" | "source" | "group": what a switch's field may be, with who uses each; "groupLsc": group i's LSC
+           "lsc" | "source" | "runs" | "group": what a switch's field may be, with who uses each; "groupLsc":
+           group i's LSC
   Groups   ed.c.groups (in order).  ed.addGroup() -> i   ed.deleteGroup(i) (its members leave it)
            ed.setGroup(i, field, value) -> true | nil, why   field: name (unique; members follow), rotate, lsc
-           ed.members(i) -> { switch index... }   ed.joinAll(i) -> how many switches joined (every one in no group)
+           ed.members(i) -> { switch index... }   ed.joinAll(i) -> how many switches joined (every one by its own
+           marks: not in a group, not always on)
            ed.addStep(i)  ed.dropStep(i, k)   ed.setStep(i, k, field, value) -> true | nil, why   field: onBelow,
            offAbove, run (whole numbers)
            ed.sideName(side) -> "north" (names, aliases or 0-5)
@@ -303,10 +306,17 @@ function Editor.new(old, snap)
       sw.offAbove = value
     elseif field == "invert" then
       sw.invert = value and true or nil
-    elseif field == "group" then
-      if value ~= nil and not groupNamed(value) then return nil, "no group is called " .. tostring(value) end
-      sw.group = value
-      if value == nil and (sw.onBelow == nil or sw.offAbove == nil) then sw.onBelow, sw.offAbove = 30, 90 end
+    elseif field == "runs" or field == "group" then
+      if value == nil then value = "marks" end
+      if value == "marks" then
+        sw.group, sw.always = nil, nil
+        if sw.onBelow == nil or sw.offAbove == nil then sw.onBelow, sw.offAbove = 30, 90 end
+      elseif value == "always" and field == "runs" then
+        sw.group, sw.always, sw.onBelow, sw.offAbove, sw.lsc = nil, true, nil, nil, nil
+      else
+        if not groupNamed(value) then return nil, "no group is called " .. tostring(value) end
+        sw.group, sw.always, sw.onBelow, sw.offAbove, sw.lsc = value, nil, nil, nil, nil
+      end
     elseif field == "heatTrip" then
       if value ~= nil and not (percent(value) and value >= 1) then return nil, "the heat trip must be a whole percent, 1-100" end
       sw.heatTrip = value
@@ -365,8 +375,8 @@ function Editor.new(old, snap)
   function ed.joinAll(gi)
     local g, n = c.groups[gi], 0
     if not g then return 0 end
-    for _, sw in ipairs(c.control) do
-      if sw.group == nil then sw.group, n = g.name, n + 1 end
+    for i, sw in ipairs(c.control) do
+      if sw.group == nil and not sw.always then ed.setSwitch(i, "runs", g.name); n = n + 1 end
     end
     return n
   end
@@ -485,6 +495,12 @@ function Editor.new(old, snap)
           out[#out + 1] = { value = r.name, label = r.name, note = r.found and "" or "not found" }
         end
       end
+    elseif what == "runs" then
+      out[1] = { value = "marks", label = "by fill", note = "on below one fill, off above another (its own marks)" }
+      out[2] = { value = "always", label = "always", note = "ON / OFF on the screen; faults and heat trips still stop it" }
+      for gi, g in ipairs(c.groups) do
+        out[#out + 1] = { value = g.name, label = "group " .. g.name, note = ("%d members: its steps say when"):format(#ed.members(gi)) }
+      end
     elseif what == "group" then
       out[1] = { value = nil, label = "none", note = "its own marks" }
       for gi, g in ipairs(c.groups) do
@@ -522,8 +538,9 @@ function Editor.new(old, snap)
       and ("redstone %s %s%s"):format(sw.redstone, tostring(Editor.sideName(sw.side)), sw.invert and " (signal = stop)" or "")
       or ("GT machine %s"):format(tostring(sw.machine))
     if sw.group then s = s .. ", in group " .. sw.group
+    elseif sw.always then s = s .. ", always on"
     else s = s .. (", on below %g%%, off above %g%%"):format(sw.onBelow or 0, sw.offAbove or 0) end
-    if sw.lsc and not sw.group then s = s .. ", follows " .. sw.lsc end
+    if sw.lsc and not sw.group and not sw.always then s = s .. ", follows " .. sw.lsc end
     if sw.source then s = s .. ", source " .. sw.source end
     if sw.heatTrip then s = s .. (", trips at %g%% heat"):format(sw.heatTrip) end
     if sw.heatRise then s = s .. (", or rising %g%% a minute"):format(sw.heatRise) end

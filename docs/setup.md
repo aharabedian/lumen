@@ -50,11 +50,13 @@ LSC or generator reports, to check the adapters are connected.
   - time to full or empty, as the LSC itself works it out
   - the net over 5 minutes and over 1 hour, passive loss, and maintenance status
   - **a fill history chart** in whatever rows are left (one sample every 30 s, the last 80 minutes)
-- **POWER** (with sources or switches): a line per [group](#groups) (how many run and are needed; tap it for its
-  page), then each switch with its `source`, as **TILES** or **ROWS** (tap to choose; kept across restarts; at
-  first, tiles when there are 4 or more and they all fit). Each says ON, OFF, **FAULT** or **TRIP**; what its source
+- **POWER** (with sources or switches): each switch with its `source`, as **TILES** or **ROWS** (tap to choose;
+  kept across restarts; at first, tiles when there are 4 or more and they all fit). With [groups](#groups), in
+  sections: each group's line (how many run and are needed; tap it for its page) with its members under it, then
+  **Not in a group** (switches always on or on their own marks, and sources with no switch). Each says ON, OFF, **FAULT** or **TRIP**; what its source
   is doing (running or idle, EU/t); a reactor's heat, on a bar that ends at its [heat trip](#heat-trips); why and for
-  how long; **AUTO / ON / OFF**, with **RESET** for a latched fault or a trip. A tile's title turns red for
+  how long; **AUTO / ON / OFF** (**ON / OFF** for one that's always on), with **RESET** for a latched fault or a
+  trip. A tile's title turns red for
   trouble, readable across the room. When the switch has been off for 10 s and its source still makes power (wired
   wrong?), it says **STILL RUNNING** in red. Sources no switch names get a tile or row of their own.
 - **Alerts:** bad ones first, each with how long it has lasted. They clear themselves a minute after the
@@ -90,7 +92,7 @@ On a tier 2 screen, panels keep the essentials:
 |---|---|
 | **LSCS** | Name it |
 | **SOURCES** | Show a GT machine or not; name it (reactors always show); warn when it stops (**always on**) |
-| **SWITCHES** | Change it: name, **Group** or marks, **REDSTONE** (block, side, **SIGNAL = STOP**) or **GT MACHINE**, the LSC it follows, its source, its [heat trip](#heat-trips), its [fault input](#fault-inputs). **▲ ▼** move it (the order on the main screen), **READ**, **+ NEW**, **COPY**, **DELETE**, **PAIR** |
+| **SWITCHES** | Change it: name, **Runs** (by fill, with its marks; always; or a group), **REDSTONE** (block, side, **SIGNAL = STOP**) or **GT MACHINE**, the LSC it follows, its source, its [heat trip](#heat-trips), its [fault input](#fault-inputs). **▲ ▼** move it (the order on the main screen), **READ**, **+ NEW**, **COPY**, **DELETE**, **PAIR** |
 | **GROUPS** | Change it: name, **Rotate**, the LSC it follows, its steps (**+ STEP**, **REMOVE**). **+ NEW**, **ADD EVERY SWITCH**, **DELETE** |
 | **GENERAL** | Alert levels, beep, LENS, start on boot; below, the warnings |
 
@@ -123,7 +125,9 @@ source, a group with no members or with steps that run more than it has.
 ## Switches
 
 A switch turns generators **on when the LSCs fall below one mark and off above another** (30% and 90%, say),
-and leaves them alone in between so they don't flicker. It's either:
+and leaves them alone in between so they don't flicker. Or it's **always on** (`always = true`, for a breeder
+that should never stop): no marks, **ON / OFF** on the screen, and faults and [heat trips](#heat-trips) still
+stop it. Or a [group](#groups) runs it. It's either:
 
 - **A redstone signal** from a Redstone I/O block (or a redstone card), on one side. Wire it to whatever runs
   the generators: an SFM setup that runs a vacuum reactor, a reactor's redstone port, a machine's enable.

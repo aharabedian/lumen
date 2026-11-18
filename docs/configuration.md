@@ -57,6 +57,7 @@ control = {
   { name = "LFTR", machine = "a1b2c3d4", lsc = "Main", onBelow = 50, offAbove = 95 },
   { name = "MOX 1", redstone = "3f2a0000", side = "top", onBelow = 30, offAbove = 90, source = "Reactor 3f2a",
     heatTrip = 90, fault = { redstone = "9c1e0000", side = "north", latch = true } },
+  { name = "Breeder", redstone = "7b3c0000", side = "top", always = true, source = "Reactor 7b3c", heatTrip = 75 },
 },
 ```
 
@@ -68,7 +69,8 @@ control = {
 | `side` | | Redstone: `"bottom"`, `"top"`, `"north"`, `"south"`, `"west"`, `"east"` (or 0-5) |
 | `invert` | `false` | Redstone: a signal means off |
 | `strength` | `15` | Redstone: the signal's strength when on |
-| `onBelow`, `offAbove` | | On below this % full, off above this % (optional in a group) |
+| `onBelow`, `offAbove` | | On below this % full, off above this % (none with `always` or `group`) |
+| `always` | `false` | Always on instead: no marks; **ON / OFF** on the screen, and faults and heat trips still stop it (a breeder, say) |
 | `group` | | Run by a [group](#groups) instead of its own marks |
 | `lsc` | all LSCs | Follow one LSC, by name |
 | `source` | | The source it switches: shown on the switch's row (not a row of its own); warns when on and it isn't running, or off and it is |

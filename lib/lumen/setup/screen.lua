@@ -198,7 +198,7 @@ function Screen.run(env)
   local COLS = {
     lscs = { { 4, "ADDRESS" }, { 14, "NAME" }, { 40, "NOW" } },
     sources = { { 4, "ADDRESS" }, { 14, "WHAT" }, { 42, "NAME" }, { 64, "" } },
-    switches = { { 4, "NAME" }, { 23, "RUN BY" }, { 47, "ON / OFF" }, { 56, "SOURCE" }, { 71, "FAULT" } },
+    switches = { { 4, "NAME" }, { 23, "RUN BY" }, { 47, "RUNS" }, { 56, "SOURCE" }, { 71, "FAULT" } },
     groups = { { 4, "NAME" }, { 23, "MEMBERS" }, { 33, "STEPS" } },
   }
 
@@ -234,7 +234,8 @@ function Screen.run(env)
       f:text(4, y, fit(sw.name, 18), C.text, bg)
       local by = sw.redstone and ("redstone %s %s"):format(sw.redstone, Editor.sideName(sw.side)) or ("GT " .. tostring(sw.machine))
       f:text(23, y, fit(by, 23), C.text, bg)
-      f:text(47, y, fit(sw.group or ("%g-%g%%"):format(sw.onBelow or 0, sw.offAbove or 0), 8), sw.group and C.info or C.text, bg)
+      f:text(47, y, fit(sw.group or (sw.always and "always") or ("%g-%g%%"):format(sw.onBelow or 0, sw.offAbove or 0), 8),
+        (sw.group or sw.always) and C.info or C.text, bg)
       f:text(56, y, fit(sw.source or "none", 14), sw.source and C.text or C.dim, bg)
       local ft, fc = faultShort(sw)
       f:text(71, y, fit(ft, W - 71), fc, bg)
@@ -368,12 +369,14 @@ function Screen.run(env)
       local ok, why = ed.setSwitch(i, "name", text)
       if ok then S.sel.switches = text else return why end
     end)
-    f:text(x, y, "Group", C.dim, P)
-    x = button(x + 6, y, (sw.group or "none") .. " ▸", function()
-      openPick("group", i, "The group " .. sw.name .. " runs in (its steps say when)")
+    f:text(x, y, "Runs", C.dim, P)
+    x = button(x + 5, y, (sw.group or (sw.always and "always") or "by fill") .. " ▸", function()
+      openPick("runs", i, "How " .. sw.name .. " runs: by the fill, always, or in a group")
     end)
     if sw.group then
       say(x, y, "its group's steps say when it runs", C.dim, P)
+    elseif sw.always then
+      say(x, y, "ON / OFF on the screen; faults and heat trips still stop it", C.dim, P)
     else
       f:text(x, y, "on below", C.dim, P)
       x = field(x + 9, y, 3, "onbelow", sw.onBelow, function(text)
@@ -415,6 +418,7 @@ function Screen.run(env)
     y = y + 1
     f:text(3, y, "Follows", C.dim, P)
     if sw.group then say(12, y, "its group's LSC", C.dim, P); x = 28
+    elseif sw.always then say(12, y, "no fill", C.dim, P); x = 28
     else
       x = button(12, y, (sw.lsc or "all LSCs") .. " ▸", function() openPick("lsc", i, "The LSC " .. sw.name .. " follows") end)
     end
@@ -691,6 +695,7 @@ function Screen.run(env)
     local sw = ed.c.control[p.i] or {}
     local current = p.what == "redstone" and sw.redstone or p.what == "machine" and sw.machine or p.what == "lsc" and sw.lsc
       or p.what == "source" and sw.source or p.what == "group" and sw.group
+      or p.what == "runs" and (sw.group or (sw.always and "always") or "marks")
       or p.what == "groupLsc" and (ed.c.groups[p.i] or {}).lsc
       or p.what == "faultRedstone" and (sw.fault and sw.fault.redstone)
     local top, height = 3, H - 4

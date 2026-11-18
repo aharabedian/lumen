@@ -156,8 +156,11 @@ function config.checkControl(list, groups)
       if s.invert ~= nil and type(s.invert) ~= "boolean" then return where .. ": invert must be true or false" end
     end
     if s.group ~= nil and not groupNamed[s.group] then return where .. (": group %q isn't in groups"):format(tostring(s.group)) end
-    -- A group's members switch by its steps: their own marks are optional (kept for when they leave it).
-    if not (s.group and s.onBelow == nil and s.offAbove == nil) then
+    if s.always ~= nil and type(s.always) ~= "boolean" then return where .. ": always must be true or false" end
+    if s.always and s.group then return where .. ": always or group, not both" end
+    -- A group's members switch by its steps, and an always-on switch by the screen: their own marks are optional
+    -- (kept for when they go back to them).
+    if not ((s.group or s.always) and s.onBelow == nil and s.offAbove == nil) then
       for _, k in ipairs({ "onBelow", "offAbove" }) do
         if not percent(s[k]) then return where .. ": " .. k .. " must be a percent, 0-100" end
       end

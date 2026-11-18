@@ -1,7 +1,8 @@
 -- test_tiles.lua: lumen's screen with a reactor fleet. Twelve IC2 reactors, each on its own Redstone I/O block,
--- in one group with heat trips, plus an LFTR no switch runs: tiles (a switch and its reactor as one tile, the
--- heat bar against its trip, RESET on a tripped or latched tile), the group's line and page (ladder and order),
--- TILES / ROWS kept across a restart, and how it fits a 160 x 50 screen, a 7 x 3 wall and a tier 2 screen.
+-- in one group with heat trips, a breeder that's always on, and an LFTR no switch runs: tiles (a switch and its
+-- reactor as one tile, the heat bar against its trip, RESET on a tripped or latched tile), the group's section,
+-- line and page (ladder and order), "Not in a group" after it (the breeder with ON / OFF only), TILES / ROWS kept
+-- across a restart, and how it fits a 160 x 50 screen, a 7 x 3 wall and a tier 2 screen.
 local H = dofile((debug.getinfo(1, "S").source:match("^@(.*[/\\])") or "./") .. "helper.lua")
 local M = require("oc")
 local LSC = require("lsc")
@@ -22,6 +23,11 @@ for k = 1, 12 do
   lines[#lines + 1] = ('    { name = "MOX %d", redstone = "c%03d", side = "top", group = "Nuclear", source = "Reactor %d", heatTrip = 90,'
     .. ' fault = { redstone = "c%03d", side = "south", latch = true } },'):format(k, k, k, k)
 end
+local breeder = Gen.reactor{ heat = 4000, maxHeat = 10000, output = 1320, produces = false }
+rs[13] = Gen.redstone()
+M.components["c0130000-0000"] = rs[13].entry
+M.components["e0130000-0000"] = breeder.entry
+lines[#lines + 1] = '    { name = "Breeder", redstone = "c013", side = "top", always = true, source = "Breeder", heatTrip = 75 },'
 local lftr = Gen.gt("gtpp.multimachine.lftr", { active = true, lines = { "Current Output: 32,768 EU/t" } })
 M.components["a1b20000-0000"] = lftr.entry
 local srcLines = {}
@@ -30,7 +36,7 @@ for k = 1, 12 do srcLines[#srcLines + 1] = ('    { address = "e%03d", name = "Re
 local cfgPath = H.TMP .. "/lumen.cfg"
 local fh = assert(io.open(cfgPath, "w"))
 fh:write("return {\n  heatWarn = 95, heatBad = 98,\n  names = { d2440f27 = \"Main\" },\n  sources = {\n" .. table.concat(srcLines, "\n")
-  .. '\n    { address = "a1b2", name = "LFTR" },\n  },\n'
+  .. '\n    { address = "e013", name = "Breeder" },\n    { address = "a1b2", name = "LFTR" },\n  },\n'
   .. '  groups = { { name = "Nuclear", steps = { { onBelow = 90, offAbove = 95, run = 4 }, { onBelow = 75, offAbove = 85, run = 6 },'
   .. ' { onBelow = 50, offAbove = 65, run = 2 } } } },\n  control = {\n' .. table.concat(lines, "\n") .. "\n  },\n}\n")
 fh:close()
@@ -43,7 +49,8 @@ local function step()
     reactors[k].state.produces = on
     if on then n = n + 1 end
   end
-  lsc.state.inSec = n * 44000 + 32768
+  breeder.state.produces = (rs[13].out[1] or 0) > 0
+  lsc.state.inSec = n * 44000 + 32768 + (breeder.state.produces and 1320 or 0)
 end
 
 local function run(untilTime, onPull)
@@ -85,6 +92,14 @@ local seen = {}
 run(40, function(_, t)
   if t > 30 and not seen.tiles then
     local mx, my = M.find("MOX 12 ", 3)
+    local _, gy = M.find("▸ Nuclear", 3)
+    local _, oy = M.find("Not in a group", 3)
+    local bx, by = M.find("Breeder ", 3)
+    local ax = by and M.find(" AUTO ", by + 4, bx - 3)
+    seen.sections = gy and oy and my and by and gy < my and my < oy and oy < by and M.find("1 always on · 1 with no switch", oy)
+    seen.breeder = by and M.find("ON · always", by) and M.find("always on: ON / OFF on the screen", by)
+      and M.find(" OFF ", by + 4, bx) and (not ax or ax > bx + 36) and (rs[13].out[1] or 0) > 0
+    seen.badge = M.find("STANDBY", 3) and M.find("standing by: 10 of 12 needed", 3)
     seen.tiles = {
       all = mx and M.find("MOX 1 ", 3) and not M.find("more tiles", 3),
       group = M.find("Nuclear", 3) and M.find("10 needed", 3),
@@ -102,6 +117,9 @@ check(seen.tiles.title, "a tile's title on its own colour")
 check(seen.tiles.group, "the group's line: how many it needs")
 check(seen.tiles.trip, "the heat bar says where it trips")
 check(seen.tiles.lftr, "the LFTR (no switch) gets a tile too")
+check(seen.sections, "the group's line with its members under it, then \"Not in a group\" and what's in it")
+check(seen.breeder, "the breeder, always on: running, ON / OFF only (no AUTO), and says so")
+check(seen.badge, "a member standing by says STANDBY, and how many of the group are needed")
 
 ---------------------------------------------------------------- a heat trip and a latched fault
 local tripped
@@ -152,9 +170,12 @@ check(seen.back, "BACK: the main page")
 seen = {}
 run(M.time + 10, function(n)
   if n == 2 then return tapAt(" ROWS ", 3) end
-  if n == 4 then seen.rows = M.find("Nuclear: 10 needed", 3) and not M.find("trip 90%", 3) end
+  if n == 4 then
+    seen.rows = M.find("10 of 12 needed", 3) and not M.find("trip 90%", 3) and M.find("Not in a group", 3)
+      and M.find("always on: ON / OFF on the screen", 3)
+  end
 end)
-check(seen.rows, "ROWS: the list, each member saying what the group wants")
+check(seen.rows, "ROWS: the same sections, each member saying what the group wants")
 run(M.time + 10)
 check(M.find(" ROWS ", 3) and not M.find("trip 90%", 3), "a restart keeps ROWS")
 run(M.time + 10, function(n) if n == 2 then return tapAt(" TILES ", 3) end end)

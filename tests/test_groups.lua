@@ -38,6 +38,10 @@ check(bad({ groups = { { name = "G", steps = STEPS }, { name = "G", steps = STEP
   "group names are unique")
 check(bad({ control = { sw("R1", { heatTrip = 0 }) } }, "heatTrip must be a percent, 1-100"), "heatTrip is a percent")
 check(bad({ control = { sw("R1", { heatRise = -2 }) } }, "heatRise must be"), "heatRise is a positive % a minute")
+ok = config.check({ control = { { name = "Breeder", redstone = "c001", side = "north", always = true } } })
+check(ok and ok.control[1].onBelow == nil, "always on: no marks needed")
+check(bad({ groups = { { name = "G", steps = STEPS } }, control = { { name = "B", redstone = "c001", side = "north", always = true,
+  group = "G" } } }, "always or group, not both"), "always and a group don't mix")
 
 ---------------------------------------------------------------- heat trip
 local out = Gen.redstone()
@@ -113,6 +117,34 @@ local drainR = { name = "Main", address = "d244", ok = true, stored = 1e9, fill 
 local secs, how = alerts.drain(drainR, config.check({}), { now = 700, switches = c.list })
 check(secs == 3600 and how == "1 h average", "a tripped switch isn't standby: draining is real")
 
+---------------------------------------------------------------- always on
+-- A breeder that should always run: on unless OFF on the screen, a fault or a heat trip.
+local brs, bflt = Gen.redstone(), Gen.redstone()
+M.components = { ["b0010000-0000"] = brs.entry, ["b0020000-0000"] = bflt.entry }
+local bcfg = config.check({ control = { { name = "Breeder", redstone = "b001", side = "north", always = true, source = "Breeder reactor",
+  heatTrip = 75, fault = { redstone = "b002", side = "top" } } } })
+local function bsrc(pct) return { sources = { { name = "Breeder reactor", ok = true, heat = pct / 100, active = true } } } end
+c = control.new(component, bcfg)
+c:update({ main }, at(0.99), 0, bsrc(40))
+s = c.list[1]
+check(s.always and s.on == true and (brs.out[2] or 0) == 15 and s.why == "always on", "always: on, at 99% full too")
+c:update({ main }, nil, 10, bsrc(40))
+check(s.on == true, "and while the fill can't be read")
+c:setMode("Breeder", "off", 20)
+check(s.on == false and (brs.out[2] or 0) == 0, "OFF on the screen: off")
+c:setMode("Breeder", "auto", 30)
+check(s.on == true, "ON (auto): on again at once")
+bflt.inp[1] = 15
+c:update({ main }, at(0.5), 100, bsrc(40))
+check(s.on == false and s.why == "fault: stopped", "a fault stops it")
+bflt.inp[1] = 0
+c:update({ main }, at(0.5), 110, bsrc(40))
+check(s.on == false and s.why == "waiting to switch again", "the fault gone: it waits its minute")
+c:update({ main }, at(0.5), 170, bsrc(40))
+check(s.on == true, "then runs")
+c:update({ main }, at(0.5), 180, bsrc(76))
+check(s.trip.on and s.on == false, "a heat trip stops it")
+
 ---------------------------------------------------------------- groups
 local rs = {}
 M.components = {}
@@ -155,7 +187,7 @@ tick(0.66, 370)
 check(on() == "R1 R3 R4 R5", "a minute after its last switch, R1 replaces R2")
 rs[2].inp[3] = 0
 tick(0.66, 380)
-check(on() == "R1 R3 R4 R5" and c.list[2].why == "Fleet: 4 needed, standing by", "the fault gone: R2 stands by")
+check(on() == "R1 R3 R4 R5" and c.list[2].why == "standing by: 4 of 5 needed", "the fault gone: R2 stands by")
 
 -- By hand: out of the group until AUTO.
 c:setMode("R3", "off", 400)
@@ -164,7 +196,7 @@ check(on() == "R1 R2 R4 R5" and c.list[3].mode == "off", "R3 OFF by hand: out of
 c:setMode("R3", "auto", 470)
 tick(0.66, 530)
 check(g.running == 4 and on() == "R1 R2 R4 R5", "back in AUTO: a member again, standing by")
-check(c.list[3].why == "Fleet: 4 needed, standing by" and c.list[4].why == "Fleet: 4 needed", "each member says why")
+check(c.list[3].why == "standing by: 4 of 5 needed" and c.list[4].why == "4 of 5 needed", "each member says why")
 
 -- The fill can't be read: the group holds.
 tick(nil, 600)
