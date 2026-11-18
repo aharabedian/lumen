@@ -150,16 +150,16 @@ do
   local day, NOW = history.new(), M.epoch
   local tot = { name = "LSC d244", address = "d2440f27-52c9", ok = true, fill = 0.6, stored = 1.2e10 }
   for t = NOW - 86400 + 5, NOW, 5 do
-    local hr = (t - (NOW - 86400)) / 3600
-    local load = 70000 + 30000 * math.sin(hr / 24 * 2 * math.pi) + ((math.floor(hr * 3) % 7 == 0) and 25000 or 0)
+    local hours = (t - (NOW - 86400)) / 3600
+    local load = 70000 + 30000 * math.sin(hours / 24 * 2 * math.pi) + ((math.floor(hours * 3) % 7 == 0) and 25000 or 0)
     local made = 4000
     for k = 1, 4 do
-      local on = math.floor(hr / 3 + (k - 1) / 2) % 2 == 0
+      local on = math.floor(hours / 3 + (k - 1) / 2) % 2 == 0
       day:source("N-" .. k, { ok = true, active = on, output = on and 43600 or 0 }, t, 5)
       if on then made = made + 43600 end
     end
     day:source("S-6", { ok = true, active = true, output = 1320 }, t, 5)
-    local lftrOn = not (hr >= 13 and hr < 14)
+    local lftrOn = not (hours >= 13 and hours < 14)
     day:source("LFTR", { ok = true, active = lftrOn, output = lftrOn and 32768 or 0 }, t, 5)
     made = made + 1320 + (lftrOn and 32768 or 0)
     tot.inEut, tot.outEut = made, load
