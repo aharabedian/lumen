@@ -20,6 +20,10 @@
   h:sourceDay(name, time) -> { eu, on, seen, starts, max }   the 24 hours up to `time`
   h:sourceMax(name) -> EU/t | nil        the most it made while running in the hours kept (48)
   h:keepSources(names)                   forget sources no longer there ({ [name] = true })
+  h:state(name, code, time)              a switch's state now ("on", "hand", "off", "handoff", "fault", "trip",
+                                         "err", or "gone" while LUMEN isn't running): kept as changes, 7 days
+  h:segments(name, from, to) -> { { from, to, state }... }   its states over [from, to], oldest first
+  h:keepStates(names)                    forget switches no longer there
   h:sourceHours(time) -> { [hour] = true }   the hours (time // 3600) in the 24 up to `time` with sources kept
   h:inOver(address, hours) -> EU         an LSC's EU in over those hours
   h:chart(address, range) -> { fill... } oldest first (range: 1, 2 or 3)
@@ -37,17 +41,20 @@ local history = {}
 history.SAMPLES = 160
 history.RANGES = { { name = "80 min", step = 30 }, { name = "8 h", step = 180 }, { name = "24 h", step = 540 } }
 local HOURS = 48
+local STATE_KEEP = 7 * 86400
+local STATE_MAX = 300      -- changes kept per switch at most (memory)
 local TICKS = 20
 
 local H = {}
 H.__index = H
 
 function history.new(saved)
-  local self = setmetatable({ lsc = {}, hours = {}, src = {}, running = {} }, H)
+  local self = setmetatable({ lsc = {}, hours = {}, src = {}, running = {}, states = {} }, H)
   if type(saved) == "table" then
     self.lsc = type(saved.lsc) == "table" and saved.lsc or {}
     self.hours = type(saved.hours) == "table" and saved.hours or {}
     self.src = type(saved.src) == "table" and saved.src or {}
+    self.states = type(saved.states) == "table" and saved.states or {}
   end
   -- History from before in and out were kept: unknown for the samples already there. And one saved after a
   -- sample begun by 0.2.1 crashed its finishing (a sample kept, its in and out not): lined up again.
@@ -221,6 +228,27 @@ function H:keepSources(names)
   end
 end
 
+function H:state(name, code, time)
+  local list = self.states[name]
+  if not list then list = {}; self.states[name] = list end
+  local last = list[#list]
+  if not last or last.s ~= code then list[#list + 1] = { t = time, s = code } end
+  while #list > STATE_MAX or (list[2] and list[2].t <= time - STATE_KEEP) do table.remove(list, 1) end
+end
+
+function H:segments(name, from, to)
+  local list, out = self.states[name] or {}, {}
+  for k, c in ipairs(list) do
+    local a, b = c.t, list[k + 1] and list[k + 1].t or to
+    if b > from and a < to then out[#out + 1] = { from = math.max(a, from), to = math.min(b, to), state = c.s } end
+  end
+  return out
+end
+
+function H:keepStates(names)
+  for name in pairs(self.states) do if not names[name] then self.states[name] = nil end end
+end
+
 function H:chart(address, k)
   local rg = (self.lsc[address] or {})[k or 1]
   if not rg then return {} end
@@ -275,6 +303,6 @@ function H:keep(addresses)
   end
 end
 
-function H:save() return { lsc = self.lsc, hours = self.hours, src = self.src } end
+function H:save() return { lsc = self.lsc, hours = self.hours, src = self.src, states = self.states } end
 
 return history

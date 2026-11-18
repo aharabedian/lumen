@@ -6,6 +6,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Timeline** (TIMELINE on the POWER line): 8 H, 24 H or 7 D of a bar per switch coloured by its state (on, by
+  hand, off, fault, trip, error; blank while LUMEN wasn't running), the fill and how many ran, and the events:
+  switches going on and off and why, faults, trips, RESETs and modes set by hand with the player who tapped,
+  alerts raised and gone, LUMEN starting and stopping. Filters and paging. Kept 7 days in `/home/lumen-log.cfg`.
 - **Energy** (ENERGY on the POWER line): the last 24 hours, stacked by group and source, with "other" (what came
   in that no source accounts for) and the load as a line; each one's EU, share, uptime, EU/t while running,
   starts and at full; and HEADROOM: everything at full against the load's average and peak, and what's spare at

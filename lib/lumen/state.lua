@@ -1,5 +1,6 @@
 --[[ lumen.state: what LUMEN keeps between runs, in /home/lumen-state.cfg (next to lumen.cfg): the switches set
-  ON or OFF on the screen, latched faults, heat trips, which group steps are on, TILES or ROWS, and history.
+  ON or OFF on the screen, latched faults, heat trips, which group steps are on, TILES or ROWS, and history (the
+  LSCs, sources and switches over time; the events are lumen.log's, in /home/lumen-log.cfg).
   Not a settings file: LUMEN rewrites it.
 
   state.clock(filesystem, computer, path) -> c

@@ -92,6 +92,23 @@ It's kept across restarts. After an update, it fills in from then on.
 
 ![The last 24 hours' energy](images/lumen-energy.png)
 
+### Timeline
+
+**TIMELINE** on the POWER line shows what happened over **8 H**, **24 H** or **7 D**:
+
+- **The fill** (kept 24 hours) and **how many switches ran**.
+- **A bar per switch**, coloured by its state: on, on by hand, off, off by hand, fault, trip, error. It's blank
+  while LUMEN wasn't running. A fault or trip shows even when it's shorter than a column. Its time on is at the right.
+- **Events**, newest first: each switch going on or off and why ("starting: 2 of 4 needed"), faults and trips,
+  RESETs and modes set by hand **with the player who tapped them**, alerts raised and gone, and LUMEN starting and
+  stopping. **ALL**, **SWITCHES**, **FAULTS**, **BY HAND** and **ALERTS** filter them; **▲ NEWER** and **▼ OLDER** page
+  through them.
+
+The events are kept 7 days in `/home/lumen-log.cfg`, written as they happen, and the bars in `lumen-state.cfg`,
+both across restarts.
+
+![What happened over the last day](images/lumen-timeline.png)
+
 ### Big mode
 
 After `glanceAfter` seconds (5 minutes) with no tap and nobody near, or when you tap **BIG** in the header, the
