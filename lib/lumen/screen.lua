@@ -21,6 +21,7 @@
     energy = (page "energy") lumen.energy.day's (lumen.pages.energy), time (the clock's now),
     timeline = (page "timeline") lumen.timeline.build's, with offset (lumen.pages.timeline),
     glance = bool: big mode (lumen.pages.glance, nothing else)
+    notice = text | nil (said in the footer instead, in yellow: "Only Steve can switch.")
   }
   actions = { quit(), open(address), back(), range(k), mode(switch name, "auto" | "on" | "off"), reset(switch name),
     group(name) (its page), energy(), timeline(), supplies() (their pages), tlRange(k), tlFilter(id), tlOlder(), tlNewer(),
@@ -103,7 +104,8 @@ function S:build(m, actions)
     or (m.page == "supplies" and "LUMEN only counts them; it never moves anything. Add them in lumen-setup: SUPPLIES.")
     or (#(m.groups or {}) > 0 and "Tap an LSC for its history; a group for its ladder and order.")
     or "Tap an LSC for its history and the last 24 hours."
-  f:text(2, self.h, Gui.fit(foot, self.w - 2), C.dim)
+  if m.notice then f:text(2, self.h, Gui.fit(m.notice, self.w - 2), C.warn)
+  else f:text(2, self.h, Gui.fit(foot, self.w - 2), C.dim) end
   return f
 end
 

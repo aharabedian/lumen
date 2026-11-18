@@ -192,6 +192,8 @@ add(typed("2", 3))
 add({ tapField("blocks, only", 14, 4) })
 add(typed("Steve, Alex"))
 seen(function() found.wake = M.find("Steve, Alex", 4) end)
+add({ tapField("Who switches", 18, 4) })
+add(typed("Steve"))
 
 ---------------------------------------------------------------- save
 add({ tap(" SAVE ", FOOT), tap(" SAVE ", FOOT), tap(" QUIT ", FOOT) })
@@ -225,6 +227,7 @@ local members = 0
 for _, s in ipairs(c.control) do if s.group == "Nuclear" then members = members + 1 end end
 check(members == 11 and sw["MOX 12"].always == true and sw["MOX 12"].group == nil and sw["MOX 12"].onBelow == nil
   and sw["MOX 1"].onBelow == nil, "11 in the group, MOX 12 always on; none of them with marks")
+check(c.operators and c.operators[1] == "Steve" and #c.operators == 1, "who can switch: Steve")
 check(c.glanceAfter == 120 and c.wakePlayers and c.wakePlayers[1] == "Steve" and c.wakePlayers[2] == "Alex" and c.glanceScale == 3,
   "big mode saved: after 2 minutes, woken by Steve or Alex")
 check(sw["MOX 1"].source == "Reactor e001" and sw["MOX 2"].source == "Reactor e005" and sw["MOX 5"].source == "Reactor e002"

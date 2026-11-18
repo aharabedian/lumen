@@ -6,6 +6,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Who can switch** (`operators`): only the players listed can tap AUTO / ON / OFF, RESET and QUIT; anyone else's
+  tap changes nothing, the footer says who can, and the timeline logs the try with their name. lumen-setup's
+  GENERAL tab sets it.
 - **Supplies** (`supplies`): fuel, coolant, spent rods and the like, counted in an AE2 ME system every 30 s through an
   adapter on an ME interface (one lookup each). A SUPPLIES section on the main page (stock, how long it lasts at the
   last hour's rate), a page (per hour, the day's line, alerts, what it feeds), alerts (under `below`, bad at none;
