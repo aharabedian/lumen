@@ -6,7 +6,7 @@
 |---|---|
 | `lumen.lua` | The power screen. The event loop only: the work is in `lumen.app` |
 | `lumen-setup.lua` | Guided setup: writes `/home/lumen.cfg` and `.shrc` (`lumen.setup.*`) |
-| `lumen-discover.lua` | Lists components with every method and doc; `--read` shows what the read-only ones return (`lumen.discover`) |
+| `lumen-discover.lua` | Lists components with every method and doc; `--read` shows what the read-only ones return; `--probe` reads IC2 reactors and transposers for reactor control; `--release` calls `setActive(false)` on reactors (`lumen.discover`) |
 | `lumen-update.lua` | Installs and updates from GitHub what `manifest.lua` lists. Self-contained: it installs the modules |
 
 Programs but `lumen-update` start with the same three lines as PRISM's and LENS's: add `/home/lib/?.lua` to the
@@ -30,7 +30,7 @@ path, forget cached `lumen.*` modules, and say "run lumen-update" if they're mis
 | `lumen.gui` | Palette (the SPECTRA logo's, LUMEN green as the accent) and GPU helpers (the same as PRISM's and LENS's) |
 | `lumen.splash` | The SPECTRA logo in pixel art while `lumen` starts: `show(gpu, w, h, name, version, accent)`; `rows(scale)` is pure |
 | `lumen.lens.metrics`, `lumen.lens.codec` | **Vendored from LENS**, byte for byte: never edit here. Change LENS, then `tools/sync-lens.sh` (a test compares them with `../lens`) |
-| `lumen.discover` | Component reports, and reading every read-only method (named get/is/has, documented as taking no arguments) |
+| `lumen.discover` | Component reports; reading every read-only method (named get/is/has, documented as taking no arguments); the reactor probe (reactor slots, transposer sides and stacks, timed) and release |
 | `lumen.lsc` | Reads an LSC's `getSensorInformation` lines: stored, capacity, fill %, averages (5 s / 5 min / 1 h), time to full/empty, maintenance, capacitor counts |
 | `lumen.setup.steps`, `.render`, `.input` | `lumen-setup`'s questions, the commented `lumen.cfg` it writes, and terminal prompts |
 | `lumen.version` | The release string; `lumen-update` keeps its own copy (a test checks) |
@@ -51,7 +51,20 @@ The tests run against `tests/mocks/oc.lua`. This table says which of its behavio
 | A **redstone** component (Redstone I/O block or card) has `getOutput(side)` and `setOutput(side, value)`, sides 0-5 (bottom, top, north, south, west, east), values 0-15 | OpenComputers' documented API; not yet tried with LUMEN |
 | `setWorkAllowed(false)` on a GT generator's controller stops it, and `isWorkAllowed()` reads it back | Assumed (the methods are seen on an LSC; LUMEN never calls them on one) |
 | A GT generator (an LFTR, turbines) answers `isMachineActive`, `getWorkProgress`, `getWorkMaxProgress`; its sensor lines say its EU/t in a line with "EU/t" and output / generates / produces, and maintenance as "Problems: n" or a `maintenance_status` key | Assumed: LUMEN shows "–" when a line isn't there. Run `lumen-discover --read` on an LFTR to confirm |
-| An IC2 reactor is component `reactor` (or `reactor_chamber`) with `getHeat`, `getMaxHeat`, `getReactorEUOutput`, `producesEnergy` | Assumed (OpenComputers' IC2 driver). Run `lumen-discover reactor` and `lumen-discover --read reactor` |
+| An IC2 reactor is component `reactor` with `getHeat` (integer), `getMaxHeat` (integer, 10000), `getReactorEUOutput` and `getReactorEnergyOutput` (floats; 1200 running), `getOfferedEnergy` (float), `getSlotInfo(x:int, y:int)`, `producesEnergy`, `setActive(active): boolean` | **Seen in game** (`--probe`, 2026-11-14) |
+| An IC2 reactor's heat and parts don't change while it's off | Seen in game (the user, 2026-11-14) |
+| `setActive` is a second "on" input beside redstone: the reactor runs if **either** is on. `setActive(false)` can't stop a reactor its redstone runs; `setActive(true)` holds one on whatever its redstone says | Seen in game (with the redstone on, then off, 2026-11-14) |
+| The `setActive(true)` flag is **kept in the reactor**: it stayed on with the computer off, the adapter broken, and a lever switched on and off. Only `setActive(false)` clears it. LUMEN never sets it | Seen in game (the user, 2026-11-14) |
+| A **Redstone I/O block keeps its output** when its computer shuts down, and when the cable to it is broken | Seen in game (2026-11-14): never run a reactor through one |
+| A **redstone card** in the computer's case drops its output to 0 when the computer shuts down (cleanly) | Seen in game (2026-11-14) |
+| A redstone card's output drops to 0 when the computer loses power | Seen in game (2026-11-14) |
+| `getSlotInfo(x, y)` (x column, y row, from 0) -> `{ item, heat, maxHeat, canStoreHeat }`: a 360k He coolant cell's exact heat (40056 of 360000) where the transposer's `damage` says 11 of 100 | Seen in game (`--probe`, 2026-11-14) |
+| A transposer's `getAllStacks(side)` returns a table of every slot (empty ones too) in 2 ticks (0.10 s for 18 or 54 slots) | Seen in game (`--probe`, 2026-11-14) |
+| A transposer sees the reactor as `"blockGenerator"`, 18 slots with no chambers; stacks have `name` (`IC2:reactorVentGold`, `IC2:reactorHeatSwitchDiamond`, `gregtech:gt.rodUranium4`), `label`, `damage` (a vent's or exchanger's heat, of `maxDamage` 10000; a quad uranium rod's of 100), `size`, `hasTag`, `tag` | Seen in game (`--probe`, 2026-11-14) |
+| The reactor's own calls take a tick each too: 10 `getHeat` in 0.50 s, 70 `getSlotInfo` in 3.50 s. An adapter on a chamber is component `reactor_chamber`, the same methods; with 6 chambers `getSlotInfo` answers 9 × 6 slots | Seen in game (`--probe`, 2026-11-15) |
+| A running breeder held its hull at 61496 of 72000 (85%) while its 360k cells gained 45–89 heat/s (full in 50 min to 2 h) | Seen in game (`--probe`, 2026-11-15); design dependent |
+| A transposer's `getStackInSlot` takes a tick (18 calls in 0.90 s, 54 in 2.70 s), so a remove then insert is never atomic | Seen in game (`--probe`, 2026-11-14) |
+| The transposer's slots go row by row: slot = y × width + x + 1, width 3 with no chambers (slot 4 is (0, 1), a coolant cell in both) | Seen for a reactor with no chambers (2026-11-14); assumed width 3 + chambers |
 | `filesystem.lastModified` returns real-world milliseconds, so history survives a restart | Assumed: without it, history starts again on each run |
 | `math.random(m, n)` doesn't return an integer (the mock returns floats) | Seen in game (PRISM and LENS) |
 | `os.sleep` (OpenOS) waits while yielding; `gpu.set` draws `▀` with the foreground on top (the splash's half-block pixels) | **Unverified** |

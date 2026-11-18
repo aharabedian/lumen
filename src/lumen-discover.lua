@@ -6,6 +6,11 @@
                                     (--all: also the basics every computer has: gpu, screen, filesystem...)
     lumen-discover --read [type]    what every read-only method (get..., is..., has..., no arguments) of each
                                     `type` component returns (default gt_machine). Never calls anything else.
+    lumen-discover --probe          IC2 reactors and transposers, for reactor control: the reactor's methods,
+                                    getSlotInfo, each transposer side's inventory and stacks, timed. Read only.
+    lumen-discover --release        setActive(false) on each IC2 reactor: clears the "on" flag a computer set,
+                                    which holds a reactor on whatever its redstone says (it's kept in the
+                                    reactor). Then only redstone runs it.
   Everything is also written to /home/lumen-discover.txt (on your own machine:
   saves/<world>/opencomputers/<disk address>/home/lumen-discover.txt).
 ]]
@@ -19,16 +24,21 @@ local discover  = require("lumen.discover")
 local VERSION   = require("lumen.version")
 
 local args = { ... }
-local opts, readType = {}, nil
+local opts, readType, probe = {}, nil, nil
 for i, a in ipairs(args) do
   if a == "--all" then opts.all = true
+  elseif a == "--probe" then probe = probe or {}
+  elseif a == "--release" then probe = probe or {}; probe.release = true
   elseif a == "--read" then readType = args[i + 1] or "gt_machine"
   elseif args[i - 1] ~= "--read" then opts.filter = a end
 end
 
 local lines = { "lumen-discover " .. VERSION, "" }
 print("lumen-discover " .. VERSION)
-if readType then
+if probe then
+  probe.sleep = os.sleep
+  for _, l in ipairs(discover.probe(component, require("computer"), probe)) do print(l); lines[#lines + 1] = l end
+elseif readType then
   for _, l in ipairs(discover.read(component, readType)) do print(l); lines[#lines + 1] = l end
 else
   local report, summary = discover.report(component, opts)

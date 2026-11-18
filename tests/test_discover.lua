@@ -4,6 +4,7 @@
 local H = dofile((debug.getinfo(1, "S").source:match("^@(.*[/\\])") or "./") .. "helper.lua")
 local M = require("oc")
 local check = H.check
+local discover = require("lumen.discover")
 
 local calls = {}
 local function method(name, value)
@@ -89,5 +90,100 @@ check(calls.setWorkAllowed == nil and file:find("not called (may change somethin
 check(out:find("getStoredEUString", 1, true), "the readings are printed too")
 ok, out = run("--read", "nothing_here")
 check(ok and out:find("no nothing_here component found", 1, true), "--read of a type that isn't attached says so")
+
+---------------------------------------------------------------- --probe
+-- An IC2 reactor as seen in game (2026-11-14): its methods and docs; producing when its redstone OR the
+-- setActive flag is on; a transposer sees it as "blockGenerator" (18 slots with no chambers), each part's
+-- damage its heat, and each transposer call takes a tick. getSlotInfo(x, y)'s answer and getAllStacks'
+-- shape (an iterator with getAll) are guesses.
+local reactor = { redstone = true, flag = false, heat = 0, setCalls = {} }
+local function producing() return reactor.redstone or reactor.flag end
+-- Each call takes a tick (seen in game).
+local function tick() M.time = M.time + 0.05 end
+local vent = { name = "IC2:reactorVentGold", label = "Overclocked Heat Vent", damage = 590, maxDamage = 10000, size = 1 }
+local rod = { name = "gregtech:gt.rodUranium4", label = "Quad Fuel Rod (Uranium)", damage = 1, maxDamage = 100, size = 1 }
+M.components["rea00000-0000"] = { type = "reactor", methods = {
+    getHeat = "function():number -- Get the reactor's heat.",
+    getMaxHeat = "function():number -- Get the reactor's maximum heat before exploding.",
+    getOfferedEnergy = "",
+    getReactorEUOutput = "function():number -- Get the reactor's base EU/t value.",
+    getReactorEnergyOutput = "function():number -- Get the reactor's energy output. Not multiplied with the base EU/t value.",
+    getSlotInfo = "function(x:int,y:int):table -- Get information about the item stored in the given reactor slot.",
+    producesEnergy = "function():boolean -- Get whether the reactor is active and supposed to produce energy.",
+    setActive = "function(active:boolean): boolean -- activate or deactivate the reactor",
+  },
+  proxy = {
+    getHeat = function() tick(); return reactor.heat end,
+    getMaxHeat = function() return 10000 end,
+    getOfferedEnergy = function() return producing() and 1200.0 or 0.0 end,
+    getReactorEUOutput = function() return producing() and 1200.0 or 0.0 end,
+    getReactorEnergyOutput = function() return 0.0 end,
+    -- (x, y) from 0 (seen in game); a 360k cell at (0, 1) gains 1000 heat each reactor tick, once a second at
+    -- t = n + 0.7 (the phase; seen in game: TO CHECK).
+    getSlotInfo = function(x, y)
+      tick()
+      if y == nil then return nil end -- one argument: nothing (seen in game)
+      if x > 2 or y > 5 then error("invalid slot") end
+      if x == 0 and y == 1 then
+        return { item = {}, canStoreHeat = true, heat = 40000 + 1000 * math.floor(M.time + 0.3) % 300000, maxHeat = 360000 }
+      end
+      return { item = {}, canStoreHeat = false, heat = 0, maxHeat = 0 }
+    end,
+    producesEnergy = function() return producing() end,
+    -- The flag is kept in the reactor and holds it on through anything but setActive(false) (seen in game):
+    -- LUMEN must never set it, so the mock raises.
+    setActive = function(on)
+      if on then error("setActive(true) holds the reactor on: never call it") end
+      reactor.setCalls[#reactor.setCalls + 1] = on; reactor.flag = on; return true
+    end,
+  } }
+local stacks = { [5] = { [1] = vent, [3] = vent, [5] = rod, [14] = rod } }
+local tcalls = {}
+local function tr(name, f) return function(...) tcalls[name] = (tcalls[name] or 0) + 1; tick(); return f(...) end end
+M.components["tra00000-0000"] = { type = "transposer", methods = {}, proxy = {
+    getInventoryName = tr("getInventoryName", function(side)
+      return ({ [4] = "tile.IronChest", [5] = "blockGenerator" })[side]
+    end),
+    getInventorySize = tr("getInventorySize", function(side) return ({ [4] = 54, [5] = 18 })[side] end),
+    getStackInSlot = tr("getStackInSlot", function(side, slot) return stacks[side] and stacks[side][slot] end),
+    getAllStacks = tr("getAllStacks", function(side)
+      local all = {}
+      for slot = 1, ({ [4] = 54, [5] = 18 })[side] do all[slot] = (stacks[side] or {})[slot] or {} end
+      return { getAll = function() return all end }
+    end),
+    transferItem = tr("transferItem", function() error("moved an item") end),
+  } }
+
+ok, out, file = run("--probe")
+check(ok and file:find("== reactor rea00000-0000 (reactor)\n  getHeat  function():number", 1, true)
+  and file:find("  setActive  function(active:boolean): boolean", 1, true), "--probe lists the reactor's methods with docs" .. (ok and "" or tostring(out)))
+check(file:find("producesEnergy() -> true", 1, true) and file:find("getOfferedEnergy() -> 1200", 1, true),
+  "it reads producesEnergy and getOfferedEnergy, which --read skips")
+check(file:find('getSlotInfo(0, 0) -> { canStoreHeat=false, heat=0 (integer), item={...}, maxHeat=0 (integer) }', 1, true)
+  and file:find("getSlotInfo(0..9, 0..6): 18 answered (first 6 shown), 52 errors (first: getSlotInfo(3, 0): ", 1, true)
+  and file:find("; 70 calls took 3.50 s", 1, true), "getSlotInfo(x, y) is tried for every column and row, timed")
+check(file:find("10 getHeat calls took 0.50 s", 1, true), "the reactor's calls are timed")
+check(file:find("heat rates over 5 s %(producing: true%):\n    %(0, 1%) %d+/360000, %+99%d heat/s, full in %d+ s")
+  and file:find("hull 0 -> 0, +0.0 heat/s", 1, true), "each part that stores heat: heat/s and time to full; the hull's too")
+check(file:find("phase: %(0, 1%) read 100 times; heat changed 5 times, at t=%d+%.70, then every 1.00, 1.00, 1.00, 1.00 s"),
+  "the phase: when a cell's heat changes, read every tick")
+check(file:find('side 5 (east): "blockGenerator", 18 slots', 1, true)
+  and file:find("side 2 (north): no inventory", 1, true), "each transposer side: inventory name and size, or none")
+check(file:find('[1] { damage=590 (integer), label="Overclocked Heat Vent", maxDamage=10000 (integer), name="IC2:reactorVentGold", size=1 (integer) }', 1, true)
+  and file:find("[3] Overclocked Heat Vent, damage 590/10000", 1, true), "every field of the first stack of a kind; the rest short")
+check(file:find("4 filled; 18 getStackInSlot calls took 0.90 s", 1, true), "reading a side is timed")
+check(file:find("getAllStacks: table, 18 entries, 0.05 s", 1, true), "and getAllStacks, once, timed")
+check(tcalls.transferItem == nil and #reactor.setCalls == 0, "--probe moves nothing and never calls setActive")
+check(discover.isReactorInventory("blockGenerator") and not discover.isReactorInventory("tile.IronChest"),
+  "a transposer's blockGenerator side is the reactor")
+
+-- --release: setActive(false) only, never true; it clears a flag a computer left on.
+reactor.redstone, reactor.flag, reactor.setCalls = false, true, {}
+ok, _, file = run("--release")
+check(ok and #reactor.setCalls == 1 and reactor.setCalls[1] == false and not producing()
+  and file:find("producing before true, after false", 1, true), "--release clears the flag: setActive(false), once")
+reactor.redstone, reactor.setCalls = true, {}
+ok, _, file = run("--release")
+check(ok and file:find("after true (its redstone runs it)", 1, true), "a reactor its redstone runs keeps running")
 
 H.done()

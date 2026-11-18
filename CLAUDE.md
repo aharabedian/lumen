@@ -21,8 +21,12 @@ make screens                      # render the screens the tests draw to PNGs (P
 ## Rules
 
 - **Focused and isolated.** Change only this repo for LUMEN's needs; never add LUMEN features to PRISM or LENS.
-- **Scope:** monitoring, alerts, and simple safe control (generators on/off by LSC fill). **No automated
-  reactor control**: OpenComputers can't swap reactor parts atomically (SFM does that better).
+- **Scope:** monitoring, alerts, and simple safe control: generators and reactors on/off (by LSC fill or by
+  hand) with a redstone signal. **SFM swaps reactor parts, not LUMEN**: one computer can't keep up with
+  high-end designs (a cell lasts ~15 s; every call takes a tick, seen in game). LUMEN reads SFM's fault
+  signal, shows it, alerts, and holds that reactor off.
+- **Never call a reactor's `setActive(true)`.** The flag is kept in the reactor and holds it on whatever its
+  redstone says, even with the computer off or the adapter broken (seen in game). The mock raises.
 - **Test first, against the mock.** Every behavior change gets a check in `tests/`. Never mark work done
   without `make check` passing.
 - **Mocks mirror the game.** Probe in game before designing against an API; when the user reports in-game
@@ -35,6 +39,8 @@ make screens                      # render the screens the tests draw to PNGs (P
   `tools/sync-lens.sh` (a test checks they match when `../lens` exists).
 - **Only `lumen.control` changes the game**, and only the redstone outputs and GT machines `control` names
   (never an LSC). Everything else only reads. The mock LSC raises if `setWorkAllowed` is called.
+  One exception: `lumen-discover --release`, asked for by name, calls `setActive(false)` on reactors, which
+  only hands them back to their redstone.
 - **Docs move with code**, in the same change (table in `CONTRIBUTING.md`). Tables over prose; link, don't repeat.
 
 ## Layout
