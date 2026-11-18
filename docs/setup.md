@@ -101,10 +101,11 @@ last hour and the day, how long each lasts, its last 24 hours as a line, its ale
 
 - **Alerts:** under `below` (bad at none: an empty fuel line), over `above` (spent rods piling up), or lasting under
   `hours`. Big mode shows a supply in trouble too.
-- **Adding one:** `lumen-setup`, SUPPLIES, **+ NEW**, then type its name as its tooltip shows it: an item's whole
-  name, exactly ("Quad Fuel Rod (Uranium)"), or part of a fluid's. LUMEN asks the ME system for it, so even a big
-  one never has to fit in this computer. Tap the one to watch, then set its alerts and what it feeds. **COUNT** says
-  how many there are now.
+- **Adding one:** `lumen-setup`, SUPPLIES, **+ NEW**, then type part of its name: every word you type must be in it,
+  in any order ("quad uran" finds Quad Fuel Rod (Uranium), ahead of the depleted one). LUMEN looks through the ME
+  system an item at a time, so even a big one never has to fit in this computer; it says how far it's got, and you
+  can tap one as soon as it shows, or **STOP**. Then set its alerts and what it feeds. **COUNT** says how many there
+  are now.
 
 LUMEN only counts; it never moves anything.
 
