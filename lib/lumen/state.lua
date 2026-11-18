@@ -1,5 +1,5 @@
 --[[ lumen.state: what LUMEN keeps between runs, in /home/lumen-state.cfg (next to lumen.cfg): the switches set
-  ON or OFF on the screen, and history. Not a settings file: LUMEN rewrites it.
+  ON or OFF on the screen, latched faults, and history. Not a settings file: LUMEN rewrites it.
 
   state.clock(filesystem, computer, path) -> c
     c:now() -> seconds        real seconds (a file's modification time, read once an hour and carried on with

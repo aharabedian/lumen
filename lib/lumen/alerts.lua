@@ -18,6 +18,8 @@
       problems  a GT source reports maintenance problems                           warn   1 min
       stopped   an alwaysOn source isn't running (not while its switch is off)     warn   5 min
       switch    a switch can't be found or switched                                bad    15 s
+      fault     a switch's fault input signals trouble (or latched)                 bad    5 s
+      faultinput  a switch's fault input can't be read                             bad    15 s
       running   a switch is on but its source isn't running, or off but it is      warn   5 min
     and "none" (warn) when no LSC was found.
   alerts.drain(reading, cfg, ctx) -> seconds | nil, how
@@ -25,7 +27,8 @@
     Vac nuke on"). With switches covering the LSC (its own, or ones following all LSCs):
       one is off in auto     nil, "standby": draining is expected, it comes on at its mark
       all on                 the rate since the last one came on (from 10 min on; up to the last hour)
-      one is off by hand     as without switches
+      one is off by hand,    as without switches (nothing will bring it on)
+      or by a fault
     Without: the LSC's cfg.drainAverage net.
   alerts.tracker() -> t
     t:update(list, now) -> new   raises an alert once it has lasted its hold (a.since: when it started); keeps it
@@ -58,7 +61,7 @@ function alerts.drain(r, cfg, ctx)
     local manualOff, latest, names = false, -math.huge, {}
     for _, s in ipairs(list) do
       if not s.on then
-        if s.mode == "auto" then return nil, "standby" end
+        if s.mode == "auto" and not (s.fault and s.fault.on) then return nil, "standby" end
         manualOff = true
       end
       latest = math.max(latest, s.since or -math.huge)
@@ -136,6 +139,13 @@ end
 
 local function switchAlerts(s, ctx, add)
   local key = ":" .. s.name
+  if s.fault and s.fault.on then
+    local stops = not (s.cfg and s.cfg.fault and s.cfg.fault.stop == false)
+    add("fault" .. key, "bad", ("%s: fault signal%s"):format(s.name, stops and ", switched off" or ""), 5)
+  end
+  if s.fault and s.fault.err then
+    add("faultinput" .. key, "bad", ("%s's fault signal can't be read: %s"):format(s.name, s.fault.err), 15)
+  end
   if s.err then
     add("switch" .. key, "bad", ("%s can't be switched: %s"):format(s.name, s.err), 15)
     return

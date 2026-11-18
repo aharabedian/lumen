@@ -5,7 +5,8 @@
     2. Power sources: IC2 reactors (always shown: a name) and other GT machines (show it? a name; warn when it
        stops?). Configured sources that aren't found now can be kept
     3. Switches: keep the ones there are; add one: a redstone signal (which component, side, whether the signal
-       means stop) or a GT machine's work switch; on below / off above; which LSC it follows; its source
+       means stop) or a GT machine's work switch; on below / off above; which LSC it follows; its source;
+       optionally a fault input (component, side, whether a signal means OK, latch, stop)
     4. Alerts: fill, drain, input drop
     5. LENS: report or not, port, name, token
     6. Start on boot: a lumen line in .shrc (other lines are kept)
@@ -130,22 +131,43 @@ local function sourcesStep(c, env)
   return gts
 end
 
+local function redstonePick(env, what)
+  local list = {}
+  for address in env.component.list("redstone", true) do list[#list + 1] = address end
+  table.sort(list)
+  if #list == 0 then
+    print("    no redstone component found: attach a Redstone I/O block (or put a redstone card in), then run again")
+    return nil
+  end
+  local labels = {}
+  for _, a in ipairs(list) do labels[#labels + 1] = "redstone " .. short(a) end
+  if #list > 1 then print("    which redstone component " .. what .. "?") end
+  return short(list[#list == 1 and 1 or input.choose(labels, 1)])
+end
+
+-- A fault input: a redstone signal from what the switch runs that means trouble (SFM's error line, say).
+local function faultInput(env)
+  if not input.yes("    does it send a fault signal LUMEN should watch (a redstone line that means trouble)?", false) then
+    return nil
+  end
+  local f = { redstone = redstonePick(env, "does the fault signal come into") }
+  if not f.redstone then return nil end
+  print("    which side does it come in on?")
+  f.side = S.SIDES[input.choose(S.SIDES, 1)]
+  f.invert = input.yes("    is it an OK signal (trouble when it goes)?", false)
+  f.latch = input.yes("    stay faulted until RESET on the screen, even once the signal goes?", false)
+  f.stop = input.yes("    switch it off on a fault?", true)
+  return f
+end
+
 local function newSwitch(env, readings, gts, srcList)
   local sw = {}
   sw.name = input.ask("    its name", "Generators")
   local how = input.choose({ "a redstone signal (Redstone I/O block or card; an SFM line, a reactor...)",
     "a GT machine's on/off (its work switch)" }, 1)
   if how == 1 then
-    local list = {}
-    for address in env.component.list("redstone", true) do list[#list + 1] = address end
-    table.sort(list)
-    if #list == 0 then
-      print("    no redstone component found: attach a Redstone I/O block (or put a redstone card in), then run again")
-      return nil
-    end
-    local labels = {}
-    for _, a in ipairs(list) do labels[#labels + 1] = "redstone " .. short(a) end
-    sw.redstone = short(list[#list == 1 and 1 or input.choose(labels, 1)])
+    sw.redstone = redstonePick(env, "sends the signal")
+    if not sw.redstone then return nil end
     print("    which side does the signal go out of? (a Redstone I/O block: the world's directions)")
     sw.side = S.SIDES[input.choose(S.SIDES, 3)]
     if input.yes("    does a signal mean STOP (run while there's none)?", false) then sw.invert = true end
@@ -170,6 +192,7 @@ local function newSwitch(env, readings, gts, srcList)
     local k = input.choose(labels, 1)
     if k > 1 then sw.source = srcList[k - 1].name end
   end
+  sw.fault = faultInput(env)
   return sw
 end
 
@@ -179,9 +202,10 @@ local function controlStep(c, env, readings, gts)
   local out = {}
   if #(c.control or {}) > 0 then
     for _, s in ipairs(c.control) do
-      print(("  %s: %s, on below %g%%, off above %g%%"):format(s.name,
+      print(("  %s: %s, on below %g%%, off above %g%%%s"):format(s.name,
         s.redstone and ("redstone " .. s.redstone .. " " .. tostring(s.side)) or ("GT machine " .. tostring(s.machine)),
-        s.onBelow, s.offAbove))
+        s.onBelow, s.offAbove, s.fault and (", fault from redstone " .. tostring(s.fault.redstone) .. " "
+          .. tostring(s.fault.side)) or ""))
     end
     if input.yes("  keep these?", true) then out = c.control end
   end

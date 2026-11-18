@@ -168,6 +168,52 @@ check(sample("lumen_source_up", "source", "Vac reactor") == 1 and sample("lumen_
   "LENS: the reactor and its heat")
 check((sample("lumen_in_24h_eu", "lsc", "Main") or 0) > 0 and (sample("lumen_out_24h_eu", "lsc", "Main") or 0) > 0,
   "LENS: the last 24 hours' EU in and out")
+
+---------------------------------------------------------------- a fault input, latched
+-- SFM (or anything) raises a line into the same Redstone I/O block's south side when it hits trouble.
+local faultCfg = writeCfg("fault", [[
+  names = { d2440f27 = "Main" },
+  sources = { { address = "eeee", name = "Vac reactor" } },
+  control = { { name = "Vac nuke", redstone = "5e1f", side = "north", onBelow = 30, offAbove = 90, source = "Vac reactor",
+    fault = { redstone = "5e1f", side = "south", latch = true } } },
+  lensPort = 4243, lensNode = "power-room",
+]])
+lsc.state.stored = 0.2 * CAP                     -- low: AUTO wants it on
+run(faultCfg, M.time + 30)
+check((rs.out[2] or 0) == 15, "below 30% with no fault: on")
+rs.inp[3] = 15
+run(faultCfg, M.time + 30)
+local fx, fy = M.find("FAULT", 30)
+check((rs.out[2] or 0) == 0 and fx and M.fgAt(fx, fy) == 0xff5c5c and M.find("fault signal, switched off", fy),
+  "a fault signal: off at once; FAULT in red, and why")
+check(M.find("Vac nuke: fault signal, switched off", 1), "a BAD alert")
+rs.inp[3] = 0
+run(faultCfg, M.time + 30)
+H.screen("lumen-fault")
+check((rs.out[2] or 0) == 0 and M.find("FAULT", 30) and M.find("gone: tap RESET", 30) and M.find(" RESET ", 30, 100),
+  "latched: the signal went, it stays off, with RESET")
+run(faultCfg, M.time + 30)
+check((rs.out[2] or 0) == 0 and M.find("FAULT", 30), "a restart keeps the latched fault")
+M.resize(80, 25)
+M.oob = 0
+run(faultCfg, M.time + 20)
+check(M.oob == 0 and M.find("FAULT", 3) and M.find(" RESET ", 3, 40) and M.find(" AUTO ", 3), "tier 2: FAULT and RESET fit")
+M.resize(160, 50)
+run(faultCfg, M.time + 20)
+local _, ry = M.find(" RESET ", 30, 100)       -- the button, right of the row's text
+run(faultCfg, M.time + 30, function(n)
+  if n == 2 then return tapText(" RESET ", ry, 100) end
+end)
+check((rs.out[2] or 0) == 15 and not M.find("FAULT", 30) and not M.find(" RESET ", 30, 100), "RESET: cleared, on again at once")
+
+last = nil
+while true do
+  local ev = net.pop(hub)
+  if not ev then break end
+  local msg = require("lumen.lens.codec").decode(ev[6])
+  if msg and msg.kind == "snapshot" then last = msg end
+end
+check(sample("lumen_switch_fault", "switch", "Vac nuke") == 0, "LENS: the switch's fault state")
 M.modem = nil
 
 H.done()

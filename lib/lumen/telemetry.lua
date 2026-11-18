@@ -47,6 +47,7 @@ function Telemetry.open(cfg, modem, log)
   t.heat     = m:gauge("lumen_reactor_heat_ratio", "A reactor's heat over its max heat", "0..1")
   t.swOn     = m:gauge("lumen_switch_on", "1 while the switch has its generators on, else 0")
   t.swAuto   = m:gauge("lumen_switch_auto", "1 while the switch follows the fill, 0 when set by hand")
+  t.swFault  = m:gauge("lumen_switch_fault", "1 while the switch's fault input signals trouble (or is latched), else 0")
   t.enc = codec.encoder{ node = cfg.lensNode, role = "lumen", boot = codec.newBoot(),
     interval = cfg.interval, token = cfg.lensToken, version = require("lumen.version") }
   modem.open(port)
@@ -99,6 +100,7 @@ function Telemetry:report(readings, alerts, extra)
     local l = { switch = s.name }
     if s.on ~= nil then self.swOn:set(s.on and 1 or 0, l) end
     self.swAuto:set(s.mode == "auto" and 1 or 0, l)
+    if s.fault then self.swFault:set(s.fault.on and 1 or 0, l) end
   end
   for _, a in ipairs(alerts) do m:alert(a.id, a.level, a.text) end
   self:broadcast(self.enc:snapshot(m:snapshot()))

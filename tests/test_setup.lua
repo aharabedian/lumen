@@ -65,6 +65,11 @@ out, ok = setup({
   "", "",                           -- on below 30, off above 90
   "1",                              -- all LSCs together
   "3",                              -- its source: Vac nuke
+  "y",                              -- a fault signal: yes (the same Redstone I/O block, picked by itself)
+  "4",                              -- it comes in south
+  "",                               -- an OK signal: no
+  "y",                              -- latch: yes
+  "",                               -- switch it off on a fault: yes
   "n",                              -- add another: no
   "", "", "", "",                   -- alerts: fill 25 / 10, drain 4 / 1
   "",                               -- input alert: no
@@ -91,6 +96,10 @@ check(#c.sources == 2 and c.sources[1].name == "LFTR" and c.sources[1].alwaysOn 
 local sw = c.control[1]
 check(sw and sw.name == "Vac nuke" and sw.redstone == "5e1f0000" and sw.side == "north" and sw.onBelow == 30
   and sw.offAbove == 90 and sw.lsc == nil and sw.source == "Vac nuke" and not sw.invert, "the switch")
+check(sw.fault and sw.fault.redstone == "5e1f0000" and sw.fault.side == "south" and sw.fault.invert == false
+  and sw.fault.latch == true and sw.fault.stop == true, "its fault input")
+check(text:find('fault = { redstone = "5e1f0000", side = "south", invert = false, latch = true, stop = true }', 1, true),
+  "written in a readable order")
 check(c.lensPort == 4243 and c.lensNode == "power-room" and c.lensToken == nil and c.inputDrop == nil, "LENS, no input alert")
 check(read(SHRC) == "echo hello\nlumen\n", ".shrc starts lumen, other lines kept")
 
@@ -116,7 +125,8 @@ out, ok = setup({
   "",                  -- start on boot (already there)
   "",                  -- save
 })
-check(ok and has("Vac nuke: redstone 5e1f0000 north, on below 30%, off above 90%"), "a re-run lists the switches")
+check(ok and has("Vac nuke: redstone 5e1f0000 north, on below 30%, off above 90%, fault from redstone 5e1f0000 south"),
+  "a re-run lists the switches, with their fault inputs")
 check(read(CFG) == before, "Enter all the way: the same file")
 check(read(CFG .. ".bak") == before, "the old file is kept as .bak")
 check(read(SHRC) == "echo hello\nlumen\n", ".shrc unchanged")
@@ -124,7 +134,7 @@ check(read(SHRC) == "echo hello\nlumen\n", ".shrc unchanged")
 ---------------------------------------------------------------- a GT machine switch; cancel; decline; broken
 out, ok = setup({ "", "", "", "", "", "", "",
   "n",                 -- don't keep the switch
-  "y", "LFTR", "2", "1", "50", "95", "1", "1", "n",
+  "y", "LFTR", "2", "1", "50", "95", "1", "1", "", "n",
   "", "", "", "", "y", "", "", "", "", "", "", "" })
 c = config.load(CFG)
 check(ok and #c.control == 1 and c.control[1].machine == "a1b20000" and c.control[1].onBelow == 50 and c.inputDrop == 50,

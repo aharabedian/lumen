@@ -104,6 +104,103 @@ c:update({ { name = "Main", address = "x", ok = true, fill = 0.97 }, { name = "O
 check(lftr.allowed == false and c.list[1].on == false and c.list[1].fill == 0.97, "a GT machine: setWorkAllowed, following its LSC")
 check(c.list[2].err and c.list[2].err:find("LSC", 1, true) and (lsc.calls.setWorkAllowed or 0) == 0, "an LSC is never switched")
 
+---------------------------------------------------------------- fault inputs
+-- A switch's optional fault input: a redstone signal from whatever it runs (SFM's error line, say).
+check(bad({ control = { { name = "x", redstone = "a", side = 2, onBelow = 30, offAbove = 90, fault = { side = 1 } } } },
+  "fault needs redstone"), "a fault input needs its redstone component")
+check(bad({ control = { { name = "x", redstone = "a", side = 2, onBelow = 30, offAbove = 90, fault = { redstone = "b" } } } },
+  "fault: side must be"), "and a side")
+check(bad({ control = { { name = "x", redstone = "a", side = 2, onBelow = 30, offAbove = 90,
+  fault = { redstone = "b", side = 1, latch = "yes" } } } }, "fault: latch must be true or false"), "latch, invert and stop are true or false")
+cfg = config.check({ control = { { name = "Reactor 1", redstone = "5e1f", side = "north", onBelow = 30, offAbove = 90,
+  fault = { redstone = "9c1e", side = "top" } } } })
+local f = cfg.control[1].fault
+check(f.invert == false and f.latch == false and f.stop == true, "fault defaults: a signal means trouble, follows it, stops")
+
+local rsOut, flt = Gen.redstone(), Gen.redstone()
+M.components = { ["5e1f0000-0000"] = rsOut.entry, ["9c1e0000-0000"] = flt.entry }
+rsOut.out[2] = 15
+c = control.new(component, cfg)
+c:update({ main }, at(0.5), 0)
+s = c.list[1]
+check(s.on == true and s.fault and s.fault.on == false and s.fault.signal == false, "no signal: no fault, runs as before")
+flt.inp[1] = 15
+c:update({ main }, at(0.5), 10)
+check(s.on == false and rsOut.out[2] == 0 and s.fault.on and s.fault.since == 10 and s.why == "fault: stopped",
+  "a fault signal (top is side 1): stopped at once, though it switched seconds ago")
+c:setMode("Reactor 1", "on", 20)
+check(s.on == false and rsOut.out[2] == 0, "ON by hand doesn't override a fault")
+c:setMode("Reactor 1", "auto", 21)
+flt.inp[1] = 0
+c:update({ main }, at(0.2), 30)
+check(not s.fault.on and s.on == false and s.why == "waiting to switch again", "the signal goes: the fault clears; waits minSwitch")
+c:update({ main }, at(0.2), 80)
+check(s.on == true and rsOut.out[2] == 15, "then runs again")
+check(c:faults()["Reactor 1"] == nil, "nothing latched to keep")
+
+-- latch: a pulse stays a fault until RESET.
+cfg.control[1].fault.latch = true
+c = control.new(component, cfg)
+c:update({ main }, at(0.2), 0)
+s = c.list[1]
+flt.inp[1] = 15
+c:update({ main }, at(0.2), 10)
+flt.inp[1] = 0
+c:update({ main }, at(0.2), 20)
+check(s.fault.on and s.fault.latched and s.on == false, "latch: the signal went, the fault stays")
+check(c:faults()["Reactor 1"] == true, "a latched fault is kept across restarts")
+local c3 = control.new(component, cfg, nil, { ["Reactor 1"] = true })
+c3:update({ main }, at(0.2), 0)
+check(c3.list[1].fault.on and c3.list[1].fault.latched and c3.list[1].fault.since == 0, "and comes back latched, counted from the restart")
+flt.inp[1] = 15
+c:reset("Reactor 1", 30)
+check(s.fault.on, "RESET while the signal is still there: still a fault")
+flt.inp[1] = 0
+c:update({ main }, at(0.2), 40)
+c:reset("Reactor 1", 100)
+check(not s.fault.on and not s.fault.latched and s.on == true and rsOut.out[2] == 15,
+  "RESET once it's gone: cleared, and it runs again at once")
+
+-- invert: a steady "OK" signal; losing it is the fault.
+cfg.control[1].fault = { redstone = "9c1e", side = "top", invert = true, latch = false, stop = true }
+flt.inp[1] = 15
+c = control.new(component, cfg)
+c:update({ main }, at(0.2), 0)
+s = c.list[1]
+check(not s.fault.on and s.on == true, "invert: the OK signal is there, runs")
+flt.inp[1] = 0
+c:update({ main }, at(0.2), 10)
+check(s.fault.on and s.on == false, "invert: the OK signal drops, a fault")
+
+-- stop = false: an alert only; the output is left alone.
+cfg.control[1].fault = { redstone = "9c1e", side = "top", invert = false, latch = false, stop = false }
+flt.inp[1] = 15
+c = control.new(component, cfg)
+c:update({ main }, at(0.2), 0)
+s = c.list[1]
+check(s.fault.on and s.on == true and rsOut.out[2] == 15 and s.why ~= "fault: stopped", "stop = false: the fault shows, it keeps running")
+
+-- A fault input that can't be read: said, and nothing switched because of it.
+flt.broken = "unloaded"
+c:update({ main }, at(0.2), 10)
+check(s.fault.err == "unloaded" and s.fault.signal == nil and s.on == true, "a fault input that fails: the error; nothing stopped")
+flt.broken = nil
+M.components["9c1e0000-0000"] = nil
+cfg.control[1].fault.stop = true
+c = control.new(component, cfg)
+c:update({ main }, at(0.2), 0)
+check(c.list[1].fault.err:find("no redstone component at 9c1e", 1, true) and c.list[1].on == true, "one that isn't there says so")
+M.components["9c1e0000-0000"] = flt.entry
+
+-- The same Redstone I/O block for both: the output on one side, the fault on another.
+cfg = config.check({ control = { { name = "R2", redstone = "5e1f", side = "north", onBelow = 30, offAbove = 90,
+  fault = { redstone = "5e1f", side = "south" } } } })
+rsOut.inp[3] = 15
+c = control.new(component, cfg)
+c:update({ main }, at(0.2), 0)
+check(c.list[1].fault.on and rsOut.out[2] == 0, "one block can carry both: output north, fault south")
+rsOut.inp[3] = 0
+
 ---------------------------------------------------------------- sources
 local P = "gt5u.multiblock."
 local gen = Gen.gt("gtpp.multimachine.lftr", { active = true, progress = 30, max = 120,
@@ -164,6 +261,9 @@ check(select(2, alerts.drain(r, cfg, ctx)) == "keeping up", "on and filling: kee
 local manual = { name = "Vac nuke", mode = "off", on = false, since = 0, onBelow = 30, offAbove = 90 }
 ctx = { now = 9000, switches = { manual }, sources = {} }
 check(alerts.drain(r, cfg, ctx) == 7200, "switched OFF by hand: drain alerts as without switches (nothing will save it)")
+local stopped = { name = "Vac nuke", mode = "auto", on = false, since = 0, onBelow = 30, offAbove = 90,
+  fault = { on = true, since = 0 } }
+check(alerts.drain(r, cfg, { now = 9000, switches = { stopped } }) == 7200, "switched off by a fault: not standby, it won't come on")
 local other = { name = "Other", mode = "auto", on = false, lsc = "Spare", since = 0, onBelow = 30, offAbove = 90 }
 check(alerts.drain(r, cfg, { now = 9000, switches = { other } }) == 7200, "a switch following another LSC doesn't count")
 
@@ -183,6 +283,16 @@ sw.on = false
 list2 = alerts.evaluate({}, cfg, { now = 100, switches = { sw }, sources = srcs })
 check(ids(list2):find("warn heat:Vac nuke", 1, true) and ids(list2):find("warn running:Vac nuke", 1, true)
   and list2[#list2].text ~= nil, "heat over heatWarn: warn; switched off but still running: warn")
+local faulted = { name = "Reactor 1", mode = "auto", on = false, since = 0, fault = { on = true, since = 90 } }
+local unread = { name = "Reactor 2", mode = "auto", on = true, since = 0, fault = { on = false, err = "unloaded" } }
+local alertOnly = { name = "Reactor 3", mode = "auto", on = true, since = 0, fault = { on = true, since = 90 },
+  cfg = { fault = { stop = false } } }
+list2 = alerts.evaluate({}, cfg, { now = 100, switches = { faulted, unread, alertOnly } })
+check(ids(list2) == "bad fault:Reactor 1, bad fault:Reactor 3, bad faultinput:Reactor 2, warn none",
+  "a fault: bad; a fault input that can't be read: bad")
+check(list2[1].hold == 5 and list2[1].text == "Reactor 1: fault signal, switched off"
+  and list2[2].text == "Reactor 3: fault signal" and list2[3].text == "Reactor 2's fault signal can't be read: unloaded",
+  "held 5 s (a glitch isn't an alert); says whether it was switched off")
 local lftrSw = { name = "LFTR", mode = "auto", on = false, since = 0, source = "LFTR" }
 list2 = alerts.evaluate({}, cfg, { now = 100, switches = { lftrSw }, sources = { srcs[2] } })
 check(not ids(list2):find("stopped", 1, true), "an alwaysOn source its switch turned off isn't 'stopped'")

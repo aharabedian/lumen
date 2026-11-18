@@ -10,7 +10,7 @@ local VERSION = require("lumen.version")
 local R = {}
 
 local ORDER = { "name", "address", "redstone", "machine", "side", "invert", "strength", "onBelow", "offAbove", "lsc",
-  "source", "alwaysOn", "minSwitch" }
+  "source", "alwaysOn", "minSwitch", "fault", "latch", "stop" }
 local RANK = {}
 for i, k in ipairs(ORDER) do RANK[k] = i end
 
