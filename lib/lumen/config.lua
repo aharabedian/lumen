@@ -25,8 +25,8 @@ config.DEFAULTS = {
   glanceAfter = 300,       -- big mode (few, big characters) after this many seconds without a tap or anyone near;
                            -- 0: only with BIG on the screen
   glanceScale = 3,         -- big mode's characters are this many times bigger
-  wakeRange = 6,           -- blocks: a player this close wakes big mode (radar, entity detector; a motion sensor: 8)
-  wakePlayers = nil,       -- { "Steve" }: only these wake it; nil: anyone (a motion sensor: anything that moves)
+  wakeRange = 6,           -- blocks: a player this close to a Computronics radar wakes big mode (8 at most)
+  wakePlayers = nil,       -- { "Steve" }: only these wake it; nil: anyone
   sources = {},            -- { { address = "a1b2", name = "LFTR", alwaysOn = true }... }: GT generators to show
   control = {},            -- switches: { { name, redstone | machine, side, onBelow, offAbove, ... }... }
   groups = {},             -- { { name, steps = { { onBelow, offAbove, run }... }, rotate, lsc }... }: switches

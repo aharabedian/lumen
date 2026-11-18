@@ -54,7 +54,7 @@ local SETTINGS = {
   { "beep", "beep when a bad alert appears" },
   { "glanceAfter", "big mode after this many seconds without a tap or anyone near; 0 = only by hand" },
   { "glanceScale", "big mode's characters are this many times bigger (2-6)" },
-  { "wakeRange", "blocks: a player this close wakes big mode (radar, entity detector)" },
+  { "wakeRange", "blocks: a player this close to a Computronics radar wakes big mode (8 at most)" },
   { "wakePlayers", '{ "Steve" }: only these wake big mode; nil = anyone' },
   { "lensPort", "report to LENS on this port; nil = don't" },
   { "lensNode", "this computer's name in LENS" },

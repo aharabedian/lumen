@@ -617,7 +617,7 @@ function Screen.run(env)
     label("Wake it")
     local kinds = ed.snap.presence or {}
     if #kinds == 0 then
-      say(20, y, "by tapping (a radar, entity detector or motion sensor wakes it as you walk up)", C.dim)
+      say(20, y, "by tapping (a Computronics radar wakes it as you walk up)", C.dim)
     else
       local found = table.concat(kinds, ", ") .. ": within"
       say(20, y, found, C.text)

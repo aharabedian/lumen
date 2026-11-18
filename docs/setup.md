@@ -10,7 +10,7 @@
 | A **Redstone I/O** block or redstone card (optional) | For a [switch](#switches) that runs generators by a redstone signal. A GT generator can be switched through its adapter instead |
 | An Internet Card | To install and update. You can take it out afterwards |
 | A network card (optional) | Only to report to [LENS](https://github.com/aharabedian/lens) |
-| A presence detector (optional) | To wake [big mode](#big-mode) as you walk up: a Computronics **Radar**, an OpenSecurity **Entity Detector**, or an OpenComputers **Motion Sensor**, touching the computer or cabled to it |
+| A Computronics **Radar** (optional) | To wake [big mode](#big-mode) as you walk up: the block, touching the computer or cabled to it |
 
 One computer shows every LSC it can reach. LSCs too far apart for cable can each have their own LUMEN
 computer, all reporting to the same LENS hub.
@@ -83,18 +83,13 @@ worst alert. Everything else carries on as before (switching, alerts, LENS).
 
 ![Big mode on a 7 x 3 wall](images/lumen-big.png)
 
-**A tap anywhere wakes it** (and presses nothing underneath). With a presence detector, walking up does too:
+**A tap anywhere wakes it** (and presses nothing underneath). With a Computronics **Radar**, walking up does too:
 
-| Detector | Wakes it when | Keeps it awake while you stand there | Notes |
-|---|---|---|---|
-| Computronics **Radar** | a player comes within `wakeRange` blocks (8 at most, through walls) | yes | Asked every 2 s in big mode; each look pauses the computer half a second |
-| OpenSecurity **Entity Detector** | a player comes within `wakeRange` blocks | yes | Asked every 2 s in big mode |
-| OpenComputers **Motion Sensor** | anything living moves within 8 blocks, in line of sight | no: only while you move | No asking: it tells LUMEN. Mobs wake it too, unless `wakePlayers` is set |
-
-While awake, LUMEN only asks a radar or entity detector when it's about to go big, so someone standing at the screen
-keeps it awake at no cost the rest of the time. After **BIG**, only someone arriving wakes it, not whoever tapped
-it (a motion sensor is ignored for 15 s). `wakePlayers` limits it to some players. The detectors' behaviour comes
-from GTNH 2.9.0's sources; it hasn't been tried in game yet.
+- A player within `wakeRange` blocks (6; 8 at most, through walls) wakes it within a couple of seconds, and keeps
+  it awake while they stand there. `wakePlayers` limits it to some players.
+- In big mode LUMEN asks the radar every 2 s. Awake, it asks only when it's about to go big, since each look
+  pauses the computer half a second.
+- After **BIG**, only someone arriving wakes it, not whoever tapped it.
 
 **Tap an LSC** (or All LSCs) for its page: fill history over **80 MIN**, **8 H** or **24 H**, its averages over 5 s,
 5 min and 1 h, time to full or empty, passive loss, maintenance, wireless, capacitors, and **the last 24 hours**

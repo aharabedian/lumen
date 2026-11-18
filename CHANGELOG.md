@@ -9,8 +9,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 - **Big mode**: after `glanceAfter` seconds (5 minutes) with no tap and nobody near, or **BIG** in the header, a few big
   characters for across the room (`glanceScale` times bigger): how full, time to full or empty, the net, how many
   run, the groups, faults and trips, the worst alert. A tap wakes it; so does a player walking up to a Computronics
-  Radar or an OpenSecurity Entity Detector (`wakeRange`, `wakePlayers`; standing there keeps it awake), or moving by
-  an OpenComputers Motion Sensor. `lumen-setup`'s GENERAL tab sets it.
+  Radar (`wakeRange`, `wakePlayers`; standing there keeps it awake). `lumen-setup`'s GENERAL tab sets it.
 - **Reactor tiles**: POWER shows each switch and its source as a tile (TILES or ROWS, kept across restarts): what
   it runs and makes, its heat on a bar that ends at its trip mark, why, RESET and AUTO / ON / OFF. A tile's title
   turns red for a fault, a trip, an error or a reactor still running while switched off. Twelve reactors fit a

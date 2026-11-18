@@ -1,8 +1,7 @@
 -- test_glance.lua: big mode on a 7 x 3 wall. Big after glanceAfter seconds without a tap or anyone near (big
 -- digits, the time to full, how many run, the groups, the worst alert); waking: a tap anywhere (which presses
--- nothing underneath), a player arriving at a Computronics radar or an OpenSecurity entity detector, or moving
--- at an OpenComputers motion sensor; someone standing near keeps it awake; BIG by hand; wakeRange, wakePlayers,
--- the motion sensor's quiet 15 s after BIG; glanceAfter = 0. The detectors behave as GTNH 2.9.0's sources say.
+-- nothing underneath), or a player walking up to a Computronics radar; someone standing near keeps it awake;
+-- BIG by hand; wakeRange, wakePlayers; no radar; glanceAfter = 0.
 local H = dofile((debug.getinfo(1, "S").source:match("^@(.*[/\\])") or "./") .. "helper.lua")
 local M = require("oc")
 local LSC = require("lsc")
@@ -20,7 +19,7 @@ for k = 1, 5 do
   base[("c%03d0000-0000"):format(k)] = rs[k].entry
   base[("e%03d0000-0000"):format(k)] = reactors[k].entry
 end
-local radar, detector = Gen.radar(), Gen.detector()
+local radar = Gen.radar()
 local function room(extra)
   M.components = {}
   for a, e in pairs(base) do M.components[a] = e end
@@ -160,51 +159,19 @@ run(t0 + 130, function(_, t)
 end)
 check(seen.steve and seen.alex, "wakePlayers = { \"Alex\" }: Steve doesn't wake it, Alex does")
 
----------------------------------------------------------------- a motion sensor
+---------------------------------------------------------------- no radar: only a tap wakes it
 writeCfg()
-room({ ["m0010000-0000"] = Gen.MOTION })
+room()
 seen = {}
 t0 = M.time
 local radarCalls = radar.calls
-run(t0 + 160, function(_, t)
-  if isBig() and not seen.big then seen.big = t - t0; seen.moveAt = t + 10 end
-  if seen.moveAt and t >= seen.moveAt and not seen.moved then
-    seen.moved = t
-    return { "motion", "m0010000-0000", 1.5, 0, 2.5, "Steve" }
-  end
-  if seen.moved and not seen.woke then
-    seen.woke = not isBig()
-    seen.bigAt = t
-    return tapAt(" BIG ", 1)
-  end
-  if seen.bigAt and t >= seen.bigAt + 5 and not seen.early then
-    seen.early = true
-    return { "motion", "m0010000-0000", 0.5, 0, 1, "Steve" }
-  end
-  if seen.early and seen.graceBig == nil then seen.graceBig = isBig() end
-  if seen.graceBig and t >= seen.bigAt + 20 and not seen.late then
-    seen.late = true
-    return { "motion", "m0010000-0000", 0.5, 0, 1, "Zombie" }
-  end
-  if seen.late and seen.lateAwake == nil then seen.lateAwake = not isBig() end
-end)
-check(seen.big and seen.big <= 70, "a motion sensor and nobody there: big after a minute")
-check(seen.woke, "something moves at it: awake at once")
-check(seen.graceBig, "BIG by hand: moving in the next 15 s (whoever tapped it) doesn't wake it")
-check(seen.lateAwake, "after that, anything moving does")
-check(radar.calls == radarCalls, "no radar: nothing polled")
-
----------------------------------------------------------------- an entity detector
-room({ ["d0010000-0000"] = detector.entry })
-detector.players = {}
-seen = {}
-t0 = M.time
 run(t0 + 100, function(_, t)
-  if isBig() and not seen.big then seen.big = t; detector.players = { { name = "Steve", distance = 4 } } end
-  if seen.big and not seen.woke and not isBig() then seen.woke = t - seen.big end
+  if isBig() and not seen.big then seen.big = t - t0; seen.tapAt = t + 10 end
+  if seen.tapAt and t >= seen.tapAt and not seen.tapped then seen.tapped = true; return { "touch", "scr", 20, 6, 0, "p" } end
+  if seen.tapped and seen.woke == nil then seen.woke = not isBig() end
 end)
-check(seen.woke and seen.woke <= 3, "an OpenSecurity entity detector: a player walks up, awake")
-check(detector.range == 6, "it's always given its range (doubled, as it halves it), so it never shrinks")
+check(seen.big and seen.big <= 70 and seen.woke, "no radar: big after a minute, and a tap wakes it")
+check(radar.calls == radarCalls, "nothing polled")
 
 ---------------------------------------------------------------- glanceAfter = 0
 writeCfg("glanceAfter = 0,")

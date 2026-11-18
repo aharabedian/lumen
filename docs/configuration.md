@@ -21,8 +21,8 @@ names any setting that's wrong.
 | `beep` | `true` | Beep once when a bad alert appears (or a warning becomes bad) |
 | `glanceAfter` | `300` | [Big mode](setup.md#big-mode) after this many seconds without a tap or anyone near. `0`: only with **BIG** on the screen |
 | `glanceScale` | `3` | Big mode's characters are this many times bigger (2-6) |
-| `wakeRange` | `6` | Blocks: a player this close to a radar or entity detector wakes big mode (1-8; a motion sensor sees 8) |
-| `wakePlayers` | `nil` | `{ "Steve", "Alex" }`: only these wake it. `nil`: anyone (with a motion sensor, anything that moves) |
+| `wakeRange` | `6` | Blocks: a player this close to a Computronics radar wakes big mode (1-8) |
+| `wakePlayers` | `nil` | `{ "Steve", "Alex" }`: only these wake it. `nil`: anyone |
 | `lensPort` | `nil` | Report to LENS on this port (LENS's default is `4243`). `nil` means no reporting. Needs a network card |
 | `lensNode` | `"lumen"` | This computer's name in LENS. Give each LUMEN computer its own |
 | `lensToken` | `nil` | The LENS hub's token, if it has one |

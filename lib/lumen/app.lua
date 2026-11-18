@@ -9,8 +9,7 @@
                                      beep, redraw, report; save state every 5 minutes
   app:onTouch(x, y, now)             tap the screen, redraw (and save at once when a switch's mode changed); in big
                                      mode a tap only wakes it
-  app:onMotion(name, now)            a motion sensor's event: wakes big mode (cfg.wakePlayers, if set, has the name)
-  app:senseDue() -> time | nil       when to ask a radar or entity detector next (big mode: every 2 s)
+  app:senseDue() -> time | nil       when to ask the radar next (big mode: every 2 s)
   app:sense(now)                     ask them: someone arriving wakes big mode; someone near keeps it awake
   app:onModem(port, data)            a packet: answers the LENS hub's hello
   app:stop()                         saves state, closes LENS, restores the screen
@@ -20,10 +19,9 @@
   app.big (big mode: lumen.pages.glance at a coarser resolution, app.bigScreen), app.presence (lumen.presence)
   app.glanceSize(w, h, scale) -> w, h   big mode's resolution: w / scale (40 at least), the same shape
 
-  Big mode: after cfg.glanceAfter seconds (0: never by itself) without a tap or anyone near (a radar or entity
-  detector is asked then, so someone standing there keeps it awake), or BIG. A tap wakes it, and so does someone
-  arriving: a motion sensor's event (not in the 15 s after BIG, from whoever tapped it), or a radar or entity
-  detector finding a player near who wasn't at the last look.
+  Big mode: after cfg.glanceAfter seconds (0: never by itself) without a tap or anyone near (a radar is asked
+  then, so someone standing there keeps it awake), or BIG. A tap wakes it, and so does someone arriving: the
+  radar finding a player near who wasn't at the last look (after BIG, whoever tapped it is still there).
   app:model(now) -> what the screen draws
 
   Beeps once when a bad alert is raised or a warning becomes bad (cfg.beep). A LENS failure never stops the
@@ -45,7 +43,6 @@ local app = {}
 
 local SAVE_EVERY = 300
 local SENSE_BIG = 2      -- seconds between looks for someone, in big mode
-local GRACE = 15         -- seconds after BIG that a motion sensor doesn't wake it (whoever tapped is still there)
 
 function app.glanceSize(w, h, scale)
   local gw = math.min(w, math.max(40, w // scale))
@@ -148,7 +145,6 @@ function App:redraw(now) (self.big and self.bigScreen or self.screen):draw(self:
 function App:goBig(now, byHand)
   if self.big then return end
   self.big = true
-  self.grace = byHand and now + GRACE or nil
   if byHand then self.near = nil end     -- whoever tapped is near: only someone arriving later wakes it
   self.bigScreen:activate()
   self:redraw(now)
@@ -160,12 +156,6 @@ function App:wake(now)
   self.big = false
   self.screen:activate()
   self:redraw(now)
-end
-
-function App:onMotion(name, now)
-  if not self.presence:motion(name) then return end
-  if self.big and self.grace and now < self.grace then return end
-  self:wake(now)
 end
 
 function App:senseDue()

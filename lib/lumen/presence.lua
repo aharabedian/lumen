@@ -1,43 +1,29 @@
---[[ lumen.presence: whether someone is at the screen, from whatever presence detector is attached. Only reads.
-
-    OpenComputers' Motion Sensor ("motion_sensor"): a "motion" event when a living thing moves within 8 blocks in
-      line of sight (players and mobs alike; its name comes with it). No polling, but nothing while it stands still.
-    Computronics' Radar ("radar"): getPlayers(range) lists the players within range (8 at most, through walls).
-      Polled; each call pauses the computer for half a second.
-    OpenSecurity's Entity Detector ("os_entdetector"): scanPlayers(range) lists the players within half the range
-      it's given (and keeps that half for the next call without one, so it's always given one). Polled.
+--[[ lumen.presence: whether someone is at the screen, from a Computronics Radar block ("radar") touching the
+  computer or cabled to it. Only reads. getPlayers(range) lists the players within range (8 at most, through
+  walls); each call pauses the computer for half a second, so lumen.app asks only in big mode and just before.
 
   presence.new(component, cfg) -> p      cfg.wakeRange (blocks), cfg.wakePlayers (names; nil = anyone)
-  p.kinds = { "motion sensor" | "radar" | "entity detector"... }   what's attached, for people
-  p.polls                                 whether there's a radar or entity detector to ask
-  p:poll() -> near, who                   asks them: near = a player within wakeRange (and in wakePlayers, if
-                                          set); who = their name; nil, err when none answered
-  p:motion(name) -> bool                  whether a motion event counts (anyone, or a name in wakePlayers)
+  p.kinds = { "radar" } | {}              what's attached, for people
+  p.polls                                 whether there's a radar to ask
+  p:poll() -> near, who                   near = a player within wakeRange (and in wakePlayers, if set);
+                                          who = their name; nil, err when no radar answered
   presence.scan(component) -> kinds       what's attached, without a config (lumen-setup)
 ]]
 
 local presence = {}
 
-local KINDS = { motion_sensor = "motion sensor", radar = "radar", os_entdetector = "entity detector" }
-local ORDER = { "motion_sensor", "radar", "os_entdetector" }
-
 function presence.scan(component)
-  local out = {}
-  for _, t in ipairs(ORDER) do
-    if component.list(t, true)() then out[#out + 1] = KINDS[t] end
-  end
-  return out
+  if component.list("radar", true)() then return { "radar" } end
+  return {}
 end
 
 local P = {}
 P.__index = P
 
 function presence.new(component, cfg)
-  local self = setmetatable({ component = component, cfg = cfg, kinds = presence.scan(component), polled = {} }, P)
-  for _, t in ipairs({ "radar", "os_entdetector" }) do
-    for address in component.list(t, true) do self.polled[#self.polled + 1] = { type = t, address = address } end
-  end
-  self.polls = #self.polled > 0
+  local self = setmetatable({ component = component, cfg = cfg, kinds = presence.scan(component), radars = {} }, P)
+  for address in component.list("radar", true) do self.radars[#self.radars + 1] = address end
+  self.polls = #self.radars > 0
   return self
 end
 
@@ -48,33 +34,26 @@ function P:wanted(name)
   return false
 end
 
-function P:motion(name) return self:wanted(name) end
-
 function P:poll()
   local range = self.cfg.wakeRange or 6
   local answered, err = false, nil
-  for _, d in ipairs(self.polled) do
-    local proxy = self.component.proxy(d.address)
+  for _, address in ipairs(self.radars) do
+    local proxy = self.component.proxy(address)
     if proxy then
-      local ok, list, why
-      if d.type == "radar" then
-        ok, list, why = pcall(function() return proxy.getPlayers(range) end)
-      else
-        ok, list, why = pcall(function() return proxy.scanPlayers(range * 2) end)
-      end
+      local ok, list = pcall(function() return proxy.getPlayers(range) end)
       if ok and type(list) == "table" then
         answered = true
         for _, e in pairs(list) do
-          local dist = type(e) == "table" and (tonumber(e.distance) or tonumber(e.range)) or nil
+          local dist = type(e) == "table" and tonumber(e.distance) or nil
           if dist and dist <= range and self:wanted(e.name) then return true, e.name end
         end
       else
-        err = ok and tostring(why or list) or (tostring(list):gsub("^[^:]*:%d+: ", ""))
+        err = ok and tostring(list) or (tostring(list):gsub("^[^:]*:%d+: ", ""))
       end
     end
   end
   if answered then return false end
-  return nil, err or "no presence detector answered"
+  return nil, err or "no radar answered"
 end
 
 return presence

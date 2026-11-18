@@ -6,7 +6,7 @@
              gts = { { address, name }... },             GT machines that aren't LSCs, name = getName()
              redstone = { address... },                  Redstone I/O blocks and cards
              modem = bool,                               a network card, for LENS
-             presence = { "motion sensor" | "radar" | "entity detector"... } }   what can wake big mode
+             presence = { "radar" } | {} }               a Computronics radar, to wake big mode
     every list sorted by address
   scan.inputs(component, address) -> { { side = "south", level = 15 }... } | nil, err
     the redstone signals coming into a block now (sides with none left out): 6 calls, one a tick
