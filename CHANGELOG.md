@@ -5,6 +5,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-18
+
 ### Added
 - **Big mode**: after `glanceAfter` seconds (5 minutes) with no tap and nobody near, or **BIG** in the header, a few big
   characters for across the room (`glanceScale` times bigger): how full, time to full or empty, the net, how many
@@ -49,8 +51,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 - `lumen-setup`'s switch panel: READ sits with COPY and DELETE and says what it read on the message line.
 - **POWER shows a switch and its source as one row**: the switch's state, then what the reactor or generator is
   doing (running, EU/t, heat). Off for 10 s while the source still makes power shows **STILL RUNNING** in red.
-  Twelve reactors on switches take twelve rows instead of twenty-four, and POWER may take up to a third of the
-  screen (was a quarter), so all twelve fit on a 160x50 screen (and on a 7 x 3 wall at 160x33).
+  Twelve reactors on switches take twelve rows instead of twenty-four, and POWER may take up to half the screen
+  (was a quarter), so all twelve fit on a 160x50 screen (and on a 7 x 3 wall at 160x33).
 - **`resolution = "fit"` is the default**: the text fills the screen's shape, read from its size in blocks (a wall
   7 wide, 3 tall gets 160 x 33 instead of 160 x 50 with black bars at the sides). `"max"` is the old behaviour;
   `{ width, height }` still works. `lumen-setup`'s screen fits too, keeping at least 80 x 25.
